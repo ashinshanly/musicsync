@@ -32,6 +32,7 @@ const Room: React.FC = () => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number>();
   const peersRef = useRef<Map<string, PeerConnection>>(new Map());
+  const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
 
   useEffect(() => {
     // Initialize WebSocket connection
@@ -87,6 +88,11 @@ const Room: React.FC = () => {
 
     return () => {
       localStreamRef.current?.getTracks().forEach(track => track.stop());
+      audioElementsRef.current.forEach(audio => {
+        audio.srcObject = null;
+        audio.remove();
+      });
+      audioElementsRef.current.clear();
       peersRef.current.forEach(peer => {
         peer.connection.close();
       });
@@ -133,21 +139,51 @@ const Room: React.FC = () => {
     pc.ontrack = (event) => {
       console.log('Received track from peer:', event.streams[0]);
       const [stream] = event.streams;
-      const peer = peersRef.current.get(userId);
-      if (peer) {
-        peer.stream = stream;
+      
+      // Create or get existing audio element for this user
+      let audioElement = audioElementsRef.current.get(userId);
+      if (!audioElement) {
+        audioElement = new Audio();
+        audioElement.autoplay = true;
+        (audioElement as any).playsInline = true;
+        audioElement.id = `audio-${userId}`;
+        audioElementsRef.current.set(userId, audioElement);
+        
+        // Add error handling for audio playback
+        audioElement.onerror = (e) => {
+          console.error('Audio playback error:', e);
+          setError('Error playing received audio. Please check your audio output settings.');
+        };
+      }
+
+      // Set the stream as the source and play
+      audioElement.srcObject = stream;
+      audioElement.play().catch(error => {
+        console.error('Error playing audio:', error);
+        setError('Failed to play received audio. Try clicking anywhere on the page.');
+      });
+
+      // Set up visualization for the received stream
+      if (stream.getAudioTracks().length > 0) {
         setupAudioVisualization(stream);
       }
     };
 
     pc.oniceconnectionstatechange = () => {
       console.log(`ICE connection state with ${userId}:`, pc.iceConnectionState);
+      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        console.log('Attempting to restart ICE for peer:', userId);
+        pc.restartIce();
+      }
     };
 
     pc.onconnectionstatechange = () => {
       console.log(`Connection state with ${userId}:`, pc.connectionState);
       if (pc.connectionState === 'connected') {
         console.log('Successfully connected to peer:', userId);
+      } else if (pc.connectionState === 'failed') {
+        setError('Connection failed. Please try sharing again.');
+        stopSharing();
       }
     };
 
@@ -266,10 +302,20 @@ const Room: React.FC = () => {
 
   const stopSharing = () => {
     localStreamRef.current?.getTracks().forEach(track => track.stop());
+    
+    // Close all peer connections
     peersRef.current.forEach(peer => {
       peer.connection.close();
     });
     peersRef.current.clear();
+
+    // Clean up audio elements
+    audioElementsRef.current.forEach(audio => {
+      audio.srcObject = null;
+      audio.remove();
+    });
+    audioElementsRef.current.clear();
+
     setIsSharing(false);
     socketRef.current?.emit('stop-sharing');
     stopVisualization();
@@ -345,6 +391,23 @@ const Room: React.FC = () => {
       cancelAnimationFrame(animationFrameRef.current);
     }
   };
+
+  // Add autoplay unblock handler
+  useEffect(() => {
+    const unblockAutoplay = () => {
+      audioElementsRef.current.forEach(audio => {
+        audio.play().catch(console.error);
+      });
+    };
+
+    document.addEventListener('click', unblockAutoplay);
+    document.addEventListener('touchstart', unblockAutoplay);
+
+    return () => {
+      document.removeEventListener('click', unblockAutoplay);
+      document.removeEventListener('touchstart', unblockAutoplay);
+    };
+  }, []);
 
   const containerVariants = {
     hidden: { opacity: 0 },
