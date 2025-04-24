@@ -2,6 +2,7 @@
 module.exports = {
   content: [
     "./src/**/*.{js,jsx,ts,tsx}",
+    "./public/index.html"
   ],
   theme: {
     extend: {
@@ -24,10 +25,12 @@ module.exports = {
       keyframes: {
         gradient: {
           '0%, 100%': {
-            'background-position': '0% 50%'
+            'background-size': '200% 200%',
+            'background-position': 'left center'
           },
           '50%': {
-            'background-position': '100% 50%'
+            'background-size': '200% 200%',
+            'background-position': 'right center'
           },
         },
         float: {

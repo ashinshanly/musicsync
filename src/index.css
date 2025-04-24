@@ -4,14 +4,21 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    @apply bg-gray-900 text-white antialiased;
+  }
+}
+
+@layer components {
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 animate-gradient;
+  }
+}
+
 body {
   @apply bg-primary text-white font-space-grotesk;
   letter-spacing: 0.02em;
-}
-
-.gradient-text {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-accent-1 via-accent-2 to-accent-1 bg-300% animate-gradient;
-  letter-spacing: 0.05em;
 }
 
 .neon-button {
