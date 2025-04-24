@@ -495,7 +495,7 @@ const Room: React.FC = () => {
                 </div>
               )}
 
-              {(!sharingUser || isSharing) && (
+              {!sharingUser && (
                 <>
                   <div className="flex items-center space-x-4 mb-4">
                     <button
@@ -505,7 +505,6 @@ const Room: React.FC = () => {
                           ? 'bg-purple-500 text-white'
                           : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                       }`}
-                      disabled={!!sharingUser && !isSharing}
                     >
                       System Audio
                     </button>
@@ -516,7 +515,6 @@ const Room: React.FC = () => {
                           ? 'bg-purple-500 text-white'
                           : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                       }`}
-                      disabled={!!sharingUser && !isSharing}
                     >
                       Microphone
                     </button>
@@ -525,16 +523,23 @@ const Room: React.FC = () => {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className={`px-6 py-3 rounded-lg shadow-lg text-lg font-semibold transition-colors ${
-                      isSharing
-                        ? 'bg-red-500 hover:bg-red-600'
-                        : 'bg-purple-500 hover:bg-purple-600'
-                    }`}
-                    onClick={isSharing ? stopSharing : startSharing}
+                    className="px-6 py-3 rounded-lg shadow-lg text-lg font-semibold transition-colors bg-purple-500 hover:bg-purple-600"
+                    onClick={startSharing}
                   >
-                    {isSharing ? 'Stop Sharing' : `Share ${shareType === 'microphone' ? 'Microphone' : 'System Audio'}`}
+                    Share {shareType === 'microphone' ? 'Microphone' : 'System Audio'}
                   </motion.button>
                 </>
+              )}
+
+              {isSharing && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-3 rounded-lg shadow-lg text-lg font-semibold transition-colors bg-red-500 hover:bg-red-600"
+                  onClick={stopSharing}
+                >
+                  Stop Sharing
+                </motion.button>
               )}
 
               {error && (
