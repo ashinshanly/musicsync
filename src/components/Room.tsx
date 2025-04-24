@@ -45,7 +45,7 @@ const Room: React.FC = () => {
     socketRef.current.on('user-joined', ({ users: roomUsers }) => {
       setUsers(roomUsers);
       // Update sharing user if someone is already sharing
-      const currentlySharing = roomUsers.find(user => user.isSharing);
+      const currentlySharing = roomUsers.find((user: User) => user.isSharing);
       setSharingUser(currentlySharing || null);
     });
 
