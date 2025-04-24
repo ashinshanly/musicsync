@@ -1,12 +1,12 @@
 {
   "files": {
     "main.css": "/musicsync/static/css/main.4f93eaa2.css",
-    "main.js": "/musicsync/static/js/main.238d5e87.js",
+    "main.js": "/musicsync/static/js/main.a702b15b.js",
     "static/js/206.e2ef01de.chunk.js": "/musicsync/static/js/206.e2ef01de.chunk.js",
     "index.html": "/musicsync/index.html"
   },
   "entrypoints": [
     "static/css/main.4f93eaa2.css",
-    "static/js/main.238d5e87.js"
+    "static/js/main.a702b15b.js"
   ]
 }
