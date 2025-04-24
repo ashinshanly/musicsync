@@ -58,19 +58,21 @@ const Room: React.FC = () => {
     });
 
     socketRef.current.on('user-started-sharing', ({ userId, username }) => {
-      setUsers(prev => prev.map(user => ({
+      const updatedUsers = users.map(user => ({
         ...user,
         isSharing: user.id === userId
-      })));
-      const sharingUser = users.find(user => user.id === userId);
+      }));
+      setUsers(updatedUsers);
+      const sharingUser = updatedUsers.find(user => user.id === userId);
       setSharingUser(sharingUser || null);
     });
 
     socketRef.current.on('user-stopped-sharing', ({ userId }) => {
-      setUsers(prev => prev.map(user => ({
+      const updatedUsers = users.map(user => ({
         ...user,
         isSharing: false
-      })));
+      }));
+      setUsers(updatedUsers);
       setSharingUser(null);
       stopVisualization();
     });
@@ -306,6 +308,16 @@ const Room: React.FC = () => {
       });
 
       setIsSharing(true);
+      // Update local states immediately
+      const currentUser = users.find(user => user.id === socketRef.current?.id);
+      if (currentUser) {
+        const updatedUsers = users.map(user => ({
+          ...user,
+          isSharing: user.id === currentUser.id
+        }));
+        setUsers(updatedUsers);
+        setSharingUser(currentUser);
+      }
       socketRef.current?.emit('start-sharing');
       setupAudioVisualization(stream);
 
