@@ -339,32 +339,30 @@ const Room: React.FC = () => {
             <h2 className="text-2xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
               Connected Users
             </h2>
-            <AnimatePresence>
-              <motion.div className="space-y-4">
-                {users.map((user) => (
-                  <motion.div
-                    key={user.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className={`p-4 rounded-lg ${
-                      user.isSharing
-                        ? 'bg-purple-500/20 border border-purple-500'
-                        : 'bg-gray-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{user.name}</span>
-                      {user.isSharing && (
-                        <span className="px-2 py-1 text-sm bg-purple-500 rounded-full">
-                          Sharing
-                        </span>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
-              </motion.div>
-            </AnimatePresence>
+            <div className="space-y-4">
+              {users.map((user) => (
+                <motion.div
+                  key={user.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className={`p-4 rounded-lg ${
+                    user.isSharing
+                      ? 'bg-purple-500/20 border border-purple-500'
+                      : 'bg-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{user.name}</span>
+                    {user.isSharing && (
+                      <span className="px-2 py-1 text-sm bg-purple-500 rounded-full">
+                        Sharing
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
