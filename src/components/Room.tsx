@@ -101,17 +101,18 @@ const Room: React.FC = () => {
   }, [roomId]);
 
   const createPeerConnection = (userId: string) => {
+    console.log('Creating peer connection for user:', userId);
+    
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443',
+          urls: [
+            'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:443',
+            'turn:openrelay.metered.ca:443?transport=tcp'
+          ],
           username: 'openrelayproject',
           credential: 'openrelayproject'
         }
@@ -121,6 +122,7 @@ const Room: React.FC = () => {
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        console.log('Sending ICE candidate to:', userId);
         socketRef.current?.emit('ice-candidate', {
           candidate: event.candidate,
           to: userId
@@ -129,6 +131,7 @@ const Room: React.FC = () => {
     };
 
     pc.ontrack = (event) => {
+      console.log('Received track from peer:', event.streams[0]);
       const [stream] = event.streams;
       const peer = peersRef.current.get(userId);
       if (peer) {
@@ -143,6 +146,9 @@ const Room: React.FC = () => {
 
     pc.onconnectionstatechange = () => {
       console.log(`Connection state with ${userId}:`, pc.connectionState);
+      if (pc.connectionState === 'connected') {
+        console.log('Successfully connected to peer:', userId);
+      }
     };
 
     const peerConnection = { connection: pc };
@@ -155,42 +161,55 @@ const Room: React.FC = () => {
       let stream: MediaStream;
 
       if (shareType === 'microphone') {
-        stream = await navigator.mediaDevices.getUserMedia({ 
+        console.log('Requesting microphone access...');
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true, // Enable echo cancellation for microphone
+            noiseSuppression: true, // Enable noise suppression for clearer voice
+            autoGainControl: true,  // Enable auto gain for better voice levels
+          },
+          video: false
+        });
+        console.log('Microphone access granted:', stream.getAudioTracks()[0].label);
+      } else {
+        console.log('Requesting system audio access...');
+        stream = await navigator.mediaDevices.getDisplayMedia({
           audio: {
             echoCancellation: false,
             noiseSuppression: false,
             autoGainControl: false,
-            channelCount: 2,
-            sampleRate: 48000,
-            sampleSize: 16
+          },
+          video: {
+            width: 1,
+            height: 1,
+            frameRate: 1
           }
         });
-      } else {
-        try {
-          stream = await navigator.mediaDevices.getDisplayMedia({ 
-            audio: {
-              echoCancellation: false,
-              noiseSuppression: false,
-              autoGainControl: false,
-              channelCount: 2,
-              sampleRate: 48000
-            },
-            video: false
-          });
-        } catch (displayError) {
-          console.error('Error getting system audio:', displayError);
-          setError('Failed to access system audio. Make sure you select "Share system audio" in the dialog.');
-          return;
+        
+        // Check if audio track was actually obtained
+        const audioTrack = stream.getAudioTracks()[0];
+        if (!audioTrack) {
+          throw new Error('No audio track was captured. Please make sure to select a window/tab and enable "Share audio".');
         }
+        console.log('System audio access granted:', audioTrack.label);
+
+        // Stop the dummy video track if it exists
+        stream.getVideoTracks().forEach(track => track.stop());
       }
-      
+
+      // Store the stream reference
       localStreamRef.current = stream;
+
+      console.log('Creating peer connections for users:', users);
       
       // Add tracks to all peer connections
       users.forEach(user => {
         if (user.id !== socketRef.current?.id) {
+          console.log('Setting up connection for user:', user.id);
           const pc = createPeerConnection(user.id);
-          stream.getTracks().forEach(track => {
+          
+          stream.getAudioTracks().forEach(track => {
+            console.log('Adding track to peer connection:', track.label);
             pc.connection.addTrack(track, stream);
           });
         }
@@ -203,6 +222,7 @@ const Room: React.FC = () => {
           .map(async user => {
             const pc = peersRef.current.get(user.id);
             if (pc) {
+              console.log('Creating offer for user:', user.id);
               const offer = await pc.connection.createOffer({
                 offerToReceiveAudio: true,
                 offerToReceiveVideo: false
@@ -215,6 +235,7 @@ const Room: React.FC = () => {
 
       offers.forEach(offer => {
         if (offer) {
+          console.log('Sending offer to user:', offer.to);
           socketRef.current?.emit('offer', offer);
         }
       });
@@ -223,7 +244,9 @@ const Room: React.FC = () => {
       socketRef.current?.emit('start-sharing');
       setupAudioVisualization(stream);
 
+      // Handle stream ending
       stream.getAudioTracks()[0].onended = () => {
+        console.log('Audio track ended');
         stopSharing();
       };
     } catch (error) {
@@ -231,7 +254,11 @@ const Room: React.FC = () => {
       if (error instanceof Error) {
         setError(error.message);
       } else {
-        setError(`Failed to access ${shareType === 'microphone' ? 'microphone' : 'system audio'}. Please check your permissions and settings.`);
+        setError(
+          shareType === 'microphone'
+            ? 'Failed to access microphone. Please check your browser permissions and ensure you have a working microphone.'
+            : 'Failed to capture system audio. Please make sure to select a window/tab and enable the "Share audio" option in the dialog.'
+        );
       }
       setIsSharing(false);
     }
