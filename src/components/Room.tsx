@@ -24,6 +24,7 @@ const Room: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shareType, setShareType] = useState<'microphone' | 'system'>('system');
   
   const socketRef = useRef<Socket>();
   const localStreamRef = useRef<MediaStream>();
@@ -151,16 +152,37 @@ const Room: React.FC = () => {
 
   const startSharing = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          channelCount: 2,
-          sampleRate: 48000,
-          sampleSize: 16
+      let stream: MediaStream;
+
+      if (shareType === 'microphone') {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: 2,
+            sampleRate: 48000,
+            sampleSize: 16
+          }
+        });
+      } else {
+        try {
+          stream = await navigator.mediaDevices.getDisplayMedia({ 
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              channelCount: 2,
+              sampleRate: 48000
+            },
+            video: false
+          });
+        } catch (displayError) {
+          console.error('Error getting system audio:', displayError);
+          setError('Failed to access system audio. Make sure you select "Share system audio" in the dialog.');
+          return;
         }
-      });
+      }
       
       localStreamRef.current = stream;
       
@@ -209,7 +231,7 @@ const Room: React.FC = () => {
       if (error instanceof Error) {
         setError(error.message);
       } else {
-        setError('Failed to access audio. Please check your permissions and ensure you have a working microphone or audio input device.');
+        setError(`Failed to access ${shareType === 'microphone' ? 'microphone' : 'system audio'}. Please check your permissions and settings.`);
       }
       setIsSharing(false);
     }
@@ -347,6 +369,29 @@ const Room: React.FC = () => {
           {/* Audio Controls */}
           <div className="lg:col-span-2 bg-gray-800 rounded-xl p-6 shadow-xl">
             <div className="flex flex-col items-center space-y-6">
+              <div className="flex items-center space-x-4 mb-4">
+                <button
+                  onClick={() => setShareType('system')}
+                  className={`px-4 py-2 rounded-lg transition-colors ${
+                    shareType === 'system'
+                      ? 'bg-purple-500 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  System Audio
+                </button>
+                <button
+                  onClick={() => setShareType('microphone')}
+                  className={`px-4 py-2 rounded-lg transition-colors ${
+                    shareType === 'microphone'
+                      ? 'bg-purple-500 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  Microphone
+                </button>
+              </div>
+
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -357,7 +402,7 @@ const Room: React.FC = () => {
                 }`}
                 onClick={isSharing ? stopSharing : startSharing}
               >
-                {isSharing ? 'Stop Sharing' : 'Share Audio'}
+                {isSharing ? 'Stop Sharing' : `Share ${shareType === 'microphone' ? 'Microphone' : 'System Audio'}`}
               </motion.button>
 
               {error && (
