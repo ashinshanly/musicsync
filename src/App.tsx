@@ -1,21 +1,17 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Lobby from './components/Lobby';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import Home from './components/Home';
 import Room from './components/Room';
-import CreateRoom from './components/CreateRoom';
 
-function App() {
+const App: React.FC = () => {
   return (
-    <Router basename="/musicsync">
-      <div className="min-h-screen bg-primary text-white">
-        <Routes>
-          <Route path="/" element={<Lobby />} />
-          <Route path="/create" element={<CreateRoom />} />
-          <Route path="/room/:roomId" element={<Room />} />
-        </Routes>
-      </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/room/:roomId" element={<Room />} />
+      </Routes>
     </Router>
   );
-}
+};
 
 export default App;
