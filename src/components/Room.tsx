@@ -25,6 +25,7 @@ const Room: React.FC = () => {
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shareType, setShareType] = useState<'microphone' | 'system'>('system');
+  const [sharingUser, setSharingUser] = useState<User | null>(null);
   
   const socketRef = useRef<Socket>();
   const localStreamRef = useRef<MediaStream>();
@@ -43,13 +44,35 @@ const Room: React.FC = () => {
 
     socketRef.current.on('user-joined', ({ users: roomUsers }) => {
       setUsers(roomUsers);
+      // Update sharing user if someone is already sharing
+      const currentlySharing = roomUsers.find(user => user.isSharing);
+      setSharingUser(currentlySharing || null);
     });
 
     socketRef.current.on('user-left', ({ userId, wasSharing, users: roomUsers }) => {
       setUsers(roomUsers);
       if (wasSharing) {
+        setSharingUser(null);
         stopVisualization();
       }
+    });
+
+    socketRef.current.on('user-started-sharing', ({ userId, username }) => {
+      setUsers(prev => prev.map(user => ({
+        ...user,
+        isSharing: user.id === userId
+      })));
+      const sharingUser = users.find(user => user.id === userId);
+      setSharingUser(sharingUser || null);
+    });
+
+    socketRef.current.on('user-stopped-sharing', ({ userId }) => {
+      setUsers(prev => prev.map(user => ({
+        ...user,
+        isSharing: false
+      })));
+      setSharingUser(null);
+      stopVisualization();
     });
 
     socketRef.current.on('offer', async ({ offer, from }) => {
@@ -193,6 +216,12 @@ const Room: React.FC = () => {
   };
 
   const startSharing = async () => {
+    // Check if someone else is already sharing
+    if (sharingUser) {
+      setError('Someone else is already sharing. Please wait for them to stop.');
+      return;
+    }
+
     try {
       let stream: MediaStream;
 
@@ -459,41 +488,54 @@ const Room: React.FC = () => {
           {/* Audio Controls */}
           <div className="lg:col-span-2 bg-gray-800 rounded-xl p-6 shadow-xl">
             <div className="flex flex-col items-center space-y-6">
-              <div className="flex items-center space-x-4 mb-4">
-                <button
-                  onClick={() => setShareType('system')}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
-                    shareType === 'system'
-                      ? 'bg-purple-500 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}
-                >
-                  System Audio
-                </button>
-                <button
-                  onClick={() => setShareType('microphone')}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
-                    shareType === 'microphone'
-                      ? 'bg-purple-500 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}
-                >
-                  Microphone
-                </button>
-              </div>
+              {sharingUser && !isSharing && (
+                <div className="text-center p-4 bg-purple-500/20 border border-purple-500 rounded-lg">
+                  <span className="font-medium text-purple-300">{sharingUser.name}</span>
+                  <span className="text-gray-300"> is currently sharing audio</span>
+                </div>
+              )}
 
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className={`px-6 py-3 rounded-lg shadow-lg text-lg font-semibold transition-colors ${
-                  isSharing
-                    ? 'bg-red-500 hover:bg-red-600'
-                    : 'bg-purple-500 hover:bg-purple-600'
-                }`}
-                onClick={isSharing ? stopSharing : startSharing}
-              >
-                {isSharing ? 'Stop Sharing' : `Share ${shareType === 'microphone' ? 'Microphone' : 'System Audio'}`}
-              </motion.button>
+              {(!sharingUser || isSharing) && (
+                <>
+                  <div className="flex items-center space-x-4 mb-4">
+                    <button
+                      onClick={() => setShareType('system')}
+                      className={`px-4 py-2 rounded-lg transition-colors ${
+                        shareType === 'system'
+                          ? 'bg-purple-500 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                      disabled={!!sharingUser && !isSharing}
+                    >
+                      System Audio
+                    </button>
+                    <button
+                      onClick={() => setShareType('microphone')}
+                      className={`px-4 py-2 rounded-lg transition-colors ${
+                        shareType === 'microphone'
+                          ? 'bg-purple-500 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                      disabled={!!sharingUser && !isSharing}
+                    >
+                      Microphone
+                    </button>
+                  </div>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`px-6 py-3 rounded-lg shadow-lg text-lg font-semibold transition-colors ${
+                      isSharing
+                        ? 'bg-red-500 hover:bg-red-600'
+                        : 'bg-purple-500 hover:bg-purple-600'
+                    }`}
+                    onClick={isSharing ? stopSharing : startSharing}
+                  >
+                    {isSharing ? 'Stop Sharing' : `Share ${shareType === 'microphone' ? 'Microphone' : 'System Audio'}`}
+                  </motion.button>
+                </>
+              )}
 
               {error && (
                 <motion.div
@@ -536,7 +578,7 @@ const Room: React.FC = () => {
                     <span className="font-medium">{user.name}</span>
                     {user.isSharing && (
                       <span className="px-2 py-1 text-sm bg-purple-500 rounded-full">
-                        Sharing
+                        Sharing Audio
                       </span>
                     )}
                   </div>
