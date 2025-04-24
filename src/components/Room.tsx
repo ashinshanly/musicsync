@@ -104,7 +104,18 @@ const Room: React.FC = () => {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-      ]
+        {
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        }
+      ],
+      iceCandidatePoolSize: 10
     });
 
     pc.onicecandidate = (event) => {
@@ -125,6 +136,14 @@ const Room: React.FC = () => {
       }
     };
 
+    pc.oniceconnectionstatechange = () => {
+      console.log(`ICE connection state with ${userId}:`, pc.iceConnectionState);
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log(`Connection state with ${userId}:`, pc.connectionState);
+    };
+
     const peerConnection = { connection: pc };
     peersRef.current.set(userId, peerConnection);
     return peerConnection;
@@ -132,7 +151,17 @@ const Room: React.FC = () => {
 
   const startSharing = async () => {
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: 2,
+          sampleRate: 48000,
+          sampleSize: 16
+        }
+      });
+      
       localStreamRef.current = stream;
       
       // Add tracks to all peer connections
@@ -152,7 +181,10 @@ const Room: React.FC = () => {
           .map(async user => {
             const pc = peersRef.current.get(user.id);
             if (pc) {
-              const offer = await pc.connection.createOffer();
+              const offer = await pc.connection.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: false
+              });
               await pc.connection.setLocalDescription(offer);
               return { offer, to: user.id };
             }
@@ -173,10 +205,11 @@ const Room: React.FC = () => {
         stopSharing();
       };
     } catch (error) {
+      console.error('Error starting audio share:', error);
       if (error instanceof Error) {
         setError(error.message);
       } else {
-        setError('Failed to access audio. Please check your permissions.');
+        setError('Failed to access audio. Please check your permissions and ensure you have a working microphone or audio input device.');
       }
       setIsSharing(false);
     }
@@ -195,12 +228,24 @@ const Room: React.FC = () => {
 
   const setupAudioVisualization = (stream: MediaStream) => {
     try {
-      audioContextRef.current = new AudioContext();
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+
+      if (analyserRef.current) {
+        analyserRef.current.disconnect();
+      }
+
       analyserRef.current = audioContextRef.current.createAnalyser();
       analyserRef.current.fftSize = 256;
+      analyserRef.current.smoothingTimeConstant = 0.8;
 
       const source = audioContextRef.current.createMediaStreamSource(stream);
       source.connect(analyserRef.current);
+      
+      // Don't connect to destination to prevent audio feedback
+      // analyserRef.current.connect(audioContextRef.current.destination);
+      
       startVisualization();
     } catch (err) {
       console.error('Error setting up visualization:', err);
