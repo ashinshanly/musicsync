@@ -58,22 +58,27 @@ const Room: React.FC = () => {
     });
 
     socketRef.current.on('user-started-sharing', ({ userId, username }) => {
-      const updatedUsers = users.map(user => ({
-        ...user,
-        isSharing: user.id === userId
-      }));
-      setUsers(updatedUsers);
-      const sharingUser = updatedUsers.find(user => user.id === userId);
-      setSharingUser(sharingUser || null);
+      setUsers(prevUsers => {
+        const updatedUsers = prevUsers.map(user => ({
+          ...user,
+          isSharing: user.id === userId
+        }));
+        // Find and set the sharing user from the updated users array
+        const sharingUser = updatedUsers.find(user => user.id === userId);
+        setSharingUser(sharingUser || null);
+        return updatedUsers;
+      });
     });
 
     socketRef.current.on('user-stopped-sharing', ({ userId }) => {
-      const updatedUsers = users.map(user => ({
-        ...user,
-        isSharing: false
-      }));
-      setUsers(updatedUsers);
-      setSharingUser(null);
+      setUsers(prevUsers => {
+        const updatedUsers = prevUsers.map(user => ({
+          ...user,
+          isSharing: false
+        }));
+        setSharingUser(null);
+        return updatedUsers;
+      });
       stopVisualization();
     });
 
@@ -308,16 +313,19 @@ const Room: React.FC = () => {
       });
 
       setIsSharing(true);
-      // Update local states immediately
-      const currentUser = users.find(user => user.id === socketRef.current?.id);
-      if (currentUser) {
-        const updatedUsers = users.map(user => ({
+      // Update local states immediately using the previous state
+      setUsers(prevUsers => {
+        const updatedUsers = prevUsers.map(user => ({
           ...user,
-          isSharing: user.id === currentUser.id
+          isSharing: user.id === socketRef.current?.id
         }));
-        setUsers(updatedUsers);
-        setSharingUser(currentUser);
-      }
+        const currentUser = updatedUsers.find(user => user.id === socketRef.current?.id);
+        if (currentUser) {
+          setSharingUser(currentUser);
+        }
+        return updatedUsers;
+      });
+
       socketRef.current?.emit('start-sharing');
       setupAudioVisualization(stream);
 
@@ -501,7 +509,7 @@ const Room: React.FC = () => {
           <div className="lg:col-span-2 bg-gray-800 rounded-xl p-6 shadow-xl">
             <div className="flex flex-col items-center space-y-6">
               {sharingUser && !isSharing && (
-                <div className="text-center p-4 bg-purple-500/20 border border-purple-500 rounded-lg">
+                <div className="text-center p-4 bg-purple-500/20 border border-purple-500 rounded-lg w-full">
                   <span className="font-medium text-purple-300">{sharingUser.name}</span>
                   <span className="text-gray-300"> is currently sharing audio</span>
                 </div>
@@ -573,10 +581,10 @@ const Room: React.FC = () => {
             </div>
           </div>
 
-          {/* Users List */}
-          <div className="bg-gray-800 rounded-xl p-6 shadow-xl">
+          {/* Users List - Always visible */}
+          <div className="bg-gray-800 rounded-xl p-6 shadow-xl h-fit">
             <h2 className="text-2xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
-              Connected Users
+              Connected Users ({users.length})
             </h2>
             <div className="space-y-4">
               {users.map((user) => (
