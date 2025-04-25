@@ -527,6 +527,9 @@ const Room: React.FC = () => {
       // Store the stream reference
       localStreamRef.current = stream;
 
+      // Set up visualization immediately after getting the stream
+      setupAudioVisualization(stream);
+
       console.log('Creating peer connections for users:', users);
       
       // Create a base offer to ensure consistent m-line ordering
@@ -648,7 +651,6 @@ const Room: React.FC = () => {
       });
 
       socketRef.current?.emit('start-sharing');
-      setupAudioVisualization(stream);
 
       // Handle stream ending
       stream.getAudioTracks()[0].onended = () => {
@@ -713,10 +715,9 @@ const Room: React.FC = () => {
       source.connect(analyser);
       
       // Store the analyser reference
-      if (userId) {
-        analyserRef.current = analyser;
-      }
+      analyserRef.current = analyser;
       
+      // Start visualization immediately
       startVisualization();
     } catch (err) {
       console.error('Error setting up visualization:', err);
@@ -727,8 +728,16 @@ const Room: React.FC = () => {
     if (!analyserRef.current) return;
 
     const canvas = document.getElementById('visualizer') as HTMLCanvasElement;
+    if (!canvas) {
+      console.error('Visualizer canvas not found');
+      return;
+    }
+
     const canvasCtx = canvas.getContext('2d');
-    if (!canvasCtx) return;
+    if (!canvasCtx) {
+      console.error('Could not get canvas context');
+      return;
+    }
 
     const bufferLength = analyserRef.current.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
@@ -739,6 +748,7 @@ const Room: React.FC = () => {
       animationFrameRef.current = requestAnimationFrame(draw);
       analyserRef.current.getByteFrequencyData(dataArray);
 
+      // Clear the canvas
       canvasCtx.fillStyle = '#0A0A0F';
       canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -759,12 +769,14 @@ const Room: React.FC = () => {
       }
     };
 
+    // Start the visualization loop
     draw();
   };
 
   const stopVisualization = () => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = undefined;
     }
     if (analyserRef.current) {
       analyserRef.current.disconnect();
@@ -857,8 +869,8 @@ const Room: React.FC = () => {
       });
     }
 
-    // Set up visualization for the received stream
-    if (stream.getAudioTracks().length > 0) {
+    // Set up visualization for the received stream if this is the sharing user
+    if (stream.getAudioTracks().length > 0 && userId === sharingUser?.id) {
       setupAudioVisualization(stream, userId);
     }
   };
@@ -1009,9 +1021,14 @@ const Room: React.FC = () => {
     return modifiedSDP;
   };
 
-  // Update the cleanup effect to properly handle visualization
+  // Update the cleanup effect
   useEffect(() => {
     return () => {
+      stopVisualization();
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
       // Clean up all peer connections
       peersRef.current.forEach((peer, userId) => {
         console.log('Cleaning up peer connection for:', userId);
@@ -1028,12 +1045,6 @@ const Room: React.FC = () => {
       
       // Clean up ICE candidate queues
       iceCandidateQueuesRef.current.clear();
-      
-      // Clean up audio context and visualization
-      stopVisualization();
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
     };
   }, []);
 
