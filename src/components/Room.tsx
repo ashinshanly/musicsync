@@ -108,7 +108,7 @@ const Room: React.FC = () => {
     socketRef.current.on('offer', async ({ offer, from }) => {
       try {
         console.log('Received offer from:', from);
-        console.log('Offer SDP:', offer.sdp);
+        console.log('Original offer SDP:', offer.sdp);
         
         const pc = createPeerConnection(from);
         
@@ -159,7 +159,12 @@ const Room: React.FC = () => {
         // Set the remote description
         try {
           console.log('Setting remote description...');
-          await pc.connection.setRemoteDescription(new RTCSessionDescription(offer));
+          const modifiedOffer = new RTCSessionDescription({
+            type: 'offer',
+            sdp: modifySDP(offer.sdp)
+          });
+          console.log('Modified offer SDP:', modifiedOffer.sdp);
+          await pc.connection.setRemoteDescription(modifiedOffer);
           console.log('Remote description set successfully');
         } catch (err) {
           console.error('Error setting remote description:', err);
@@ -178,11 +183,12 @@ const Room: React.FC = () => {
           // Modify SDP to ensure audio is properly negotiated
           const modifiedAnswer = new RTCSessionDescription({
             type: 'answer',
-            sdp: answer.sdp?.replace('a=mid:0', 'a=mid:audio') || ''
+            sdp: modifySDP(answer.sdp)
           });
           
           try {
             console.log('Setting local description...');
+            console.log('Modified answer SDP:', modifiedAnswer.sdp);
             await pc.connection.setLocalDescription(modifiedAnswer);
             console.log('Local description set successfully');
           } catch (err) {
@@ -205,7 +211,7 @@ const Room: React.FC = () => {
     socketRef.current.on('answer', async ({ answer, from }) => {
       try {
         console.log('Received answer from:', from);
-        console.log('Answer SDP:', answer.sdp);
+        console.log('Original answer SDP:', answer.sdp);
         
         const pc = peersRef.current.get(from);
         if (pc) {
@@ -214,8 +220,9 @@ const Room: React.FC = () => {
             // Modify SDP to ensure audio is properly negotiated
             const modifiedAnswer = new RTCSessionDescription({
               type: 'answer',
-              sdp: answer.sdp?.replace('a=mid:0', 'a=mid:audio') || ''
+              sdp: modifySDP(answer.sdp)
             });
+            console.log('Modified answer SDP:', modifiedAnswer.sdp);
             
             await pc.connection.setRemoteDescription(modifiedAnswer);
             console.log('Successfully set remote description from:', from);
@@ -777,6 +784,65 @@ const Room: React.FC = () => {
         ease: "easeOut",
       },
     },
+  };
+
+  const modifySDP = (sdp: string | undefined) => {
+    if (!sdp) return '';
+    
+    // Split SDP into lines
+    const lines = sdp.split('\r\n');
+    let modifiedLines: string[] = [];
+    let audioMid = '0';
+    let hasAudio = false;
+    
+    // Process each line
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Find audio m= line
+      if (line.startsWith('m=audio')) {
+        hasAudio = true;
+        // Extract the MID from the a=mid line that follows
+        for (let j = i + 1; j < lines.length; j++) {
+          if (lines[j].startsWith('a=mid:')) {
+            audioMid = lines[j].split('a=mid:')[1];
+            break;
+          }
+        }
+      }
+      
+      // Keep the original line
+      modifiedLines.push(line);
+    }
+    
+    // If no audio section found, add one
+    if (!hasAudio) {
+      modifiedLines.push('m=audio 9 UDP/TLS/RTP/SAVPF 111 103 104 9 0 8 106 105 13 110 112 113 126');
+      modifiedLines.push('c=IN IP4 0.0.0.0');
+      modifiedLines.push('a=rtcp:9 IN IP4 0.0.0.0');
+      modifiedLines.push('a=ice-ufrag:audio');
+      modifiedLines.push('a=ice-pwd:audio');
+      modifiedLines.push('a=ice-options:trickle');
+      modifiedLines.push('a=fingerprint:sha-256 audio');
+      modifiedLines.push('a=setup:actpass');
+      modifiedLines.push('a=mid:audio');
+      modifiedLines.push('a=sendrecv');
+      modifiedLines.push('a=rtcp-mux');
+      modifiedLines.push('a=rtpmap:111 opus/48000/2');
+      modifiedLines.push('a=rtcp-fb:111 transport-cc');
+      modifiedLines.push('a=fmtp:111 minptime=10;useinbandfec=1');
+      audioMid = 'audio';
+    }
+    
+    // Update BUNDLE group to use the correct MID
+    modifiedLines = modifiedLines.map(line => {
+      if (line.startsWith('a=group:BUNDLE')) {
+        return `a=group:BUNDLE ${audioMid}`;
+      }
+      return line;
+    });
+    
+    return modifiedLines.join('\r\n');
   };
 
   return (
