@@ -58,7 +58,7 @@ const Room: React.FC = () => {
       }
     });
 
-    socketRef.current.on('user-started-sharing', ({ userId, username }) => {
+    socketRef.current.on('user-started-sharing', async ({ userId, username }) => {
       setUsers(prevUsers => {
         const updatedUsers = prevUsers.map(user => ({
           ...user,
@@ -69,6 +69,28 @@ const Room: React.FC = () => {
         setSharingUser(sharingUser || null);
         return updatedUsers;
       });
+
+      // If this is a new user joining a room with an active sharing session,
+      // initiate the WebRTC connection with the sharing user
+      if (userId !== socketRef.current?.id) {
+        try {
+          console.log('Setting up connection with sharing user:', userId);
+          const pc = createPeerConnection(userId);
+          
+          // Create and send offer to the sharing user
+          const offer = await pc.connection.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: false
+          });
+          await pc.connection.setLocalDescription(offer);
+          
+          console.log('Sending offer to sharing user:', userId);
+          socketRef.current?.emit('offer', { offer, to: userId });
+        } catch (error) {
+          console.error('Error setting up connection with sharing user:', error);
+          setError('Failed to connect to sharing user. Please try joining the room again.');
+        }
+      }
     });
 
     socketRef.current.on('user-stopped-sharing', ({ userId }) => {
