@@ -139,9 +139,12 @@ const Room: React.FC = () => {
               console.error('Error playing audio:', error);
               setError('Failed to play received audio. Try clicking anywhere on the page.');
               // Try to play again after a short delay
-              setTimeout(() => {
-                audioElement.play().catch(console.error);
-              }, 1000);
+              const currentAudioElement = audioElement;
+              if (currentAudioElement) {
+                setTimeout(() => {
+                  currentAudioElement.play().catch(console.error);
+                }, 1000);
+              }
             });
           }
 
@@ -281,9 +284,12 @@ const Room: React.FC = () => {
           console.error('Error playing audio:', error);
           setError('Failed to play received audio. Try clicking anywhere on the page.');
           // Try to play again after a short delay
-          setTimeout(() => {
-            audioElement.play().catch(console.error);
-          }, 1000);
+          const currentAudioElement = audioElement;
+          if (currentAudioElement) {
+            setTimeout(() => {
+              currentAudioElement.play().catch(console.error);
+            }, 1000);
+          }
         });
       }
 
