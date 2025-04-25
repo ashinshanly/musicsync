@@ -914,7 +914,7 @@ const Room: React.FC = () => {
         continue;
       }
       
-      // If this is an audio section and it doesn't have a MID, add one
+      // If this is an audio section, ensure it has a MID
       if (line.startsWith('m=audio')) {
         modifiedLines.push(line);
         // Add MID immediately after the m= line
@@ -937,6 +937,17 @@ const Room: React.FC = () => {
     
     // Add the bundle group with the correct MID
     modifiedLines.push(`a=group:BUNDLE ${audioMid}`);
+    
+    // Ensure we have all necessary audio attributes
+    const hasOpus = modifiedLines.some(line => line.includes('opus/48000'));
+    if (!hasOpus) {
+        modifiedLines.push('a=rtpmap:111 opus/48000/2');
+        modifiedLines.push('a=rtcp-fb:111 transport-cc');
+        modifiedLines.push('a=fmtp:111 minptime=10;useinbandfec=1');
+    }
+    
+    // Log the modified SDP for debugging
+    console.log('Modified SDP:', modifiedLines.join('\r\n'));
     
     return modifiedLines.join('\r\n');
   };
