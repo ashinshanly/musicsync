@@ -112,7 +112,10 @@ const Room: React.FC = () => {
         
         const pc = createPeerConnection(from);
         
-        // Ensure ontrack is set up before setting remote description
+        // Initialize ICE candidate queue for this peer
+        const iceCandidateQueues = new Map<string, RTCIceCandidate[]>();
+        
+        // Set up the ontrack handler for receiving audio
         pc.connection.ontrack = (event) => {
           console.log('Received track from peer:', event.streams[0]);
           const [stream] = event.streams;
@@ -166,6 +169,20 @@ const Room: React.FC = () => {
           console.log('Modified offer SDP:', modifiedOffer.sdp);
           await pc.connection.setRemoteDescription(modifiedOffer);
           console.log('Remote description set successfully');
+          
+          // Process any queued ICE candidates
+          const queue = iceCandidateQueues.get(from);
+          if (queue && queue.length > 0) {
+            console.log('Processing queued ICE candidates:', queue.length);
+            for (const candidate of queue) {
+              try {
+                await pc.connection.addIceCandidate(candidate);
+              } catch (err) {
+                console.error('Error adding queued ICE candidate:', err);
+              }
+            }
+            iceCandidateQueues.delete(from);
+          }
         } catch (err) {
           console.error('Error setting remote description:', err);
           throw new Error('Failed to process offer from sharing user');
@@ -244,22 +261,30 @@ const Room: React.FC = () => {
       try {
         console.log('Received ICE candidate from:', from);
         const pc = peersRef.current.get(from);
-        if (pc) {
-          try {
-            console.log('Adding ICE candidate...');
-            await pc.connection.addIceCandidate(new RTCIceCandidate(candidate));
-            console.log('Successfully added ICE candidate from:', from);
-          } catch (err) {
-            console.error('Error adding ICE candidate:', err);
-            throw new Error('Failed to process ICE candidate');
-          }
-        } else {
+        
+        if (!pc) {
           console.error('No peer connection found for ICE candidate from:', from);
-          throw new Error('Connection not found for ICE candidate');
+          return;
+        }
+
+        if (!candidate) {
+          console.log('Received null ICE candidate from:', from);
+          return;
+        }
+
+        try {
+          console.log('Adding ICE candidate:', candidate);
+          await pc.connection.addIceCandidate(new RTCIceCandidate(candidate));
+          console.log('Successfully added ICE candidate from:', from);
+        } catch (err) {
+          console.error('Error adding ICE candidate:', err);
+          // Don't throw error, just log it
+          // Some ICE candidates might fail to add, but that's okay
         }
       } catch (err) {
         console.error('Error handling ICE candidate:', err);
-        setError(err instanceof Error ? err.message : 'Failed to process ICE candidate');
+        // Don't throw error, just log it
+        // ICE candidate errors are not critical
       }
     });
 
@@ -309,58 +334,10 @@ const Room: React.FC = () => {
       rtcpMuxPolicy: 'require'
     });
 
-    // Add comprehensive connection state monitoring
-    pc.oniceconnectionstatechange = () => {
-      console.log(`ICE connection state with ${userId}:`, pc.iceConnectionState);
-      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-        console.log('Attempting to restart ICE for peer:', userId);
-        pc.restartIce();
-      }
-    };
-
-    pc.onicegatheringstatechange = () => {
-      console.log(`ICE gathering state with ${userId}:`, pc.iceGatheringState);
-    };
-
-    pc.onsignalingstatechange = () => {
-      console.log(`Signaling state with ${userId}:`, pc.signalingState);
-    };
-
-    pc.onconnectionstatechange = () => {
-      console.log(`Connection state with ${userId}:`, pc.connectionState);
-      if (pc.connectionState === 'connected') {
-        console.log('Successfully connected to peer:', userId);
-        // Verify audio tracks are properly connected
-        const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
-        if (sender?.track) {
-          console.log('Audio track is active:', sender.track.enabled);
-        }
-      } else if (pc.connectionState === 'failed') {
-        console.log('Connection failed with peer:', userId);
-        setError('Connection failed. Please try sharing again.');
-        stopSharing();
-      }
-    };
-
-    pc.ondatachannel = (event) => {
-      console.log('Data channel opened with peer:', userId);
-    };
-
     // Set up the ontrack handler for receiving audio
     pc.ontrack = (event) => {
       console.log('Received track from peer:', event.streams[0]);
       const [stream] = event.streams;
-      
-      // Verify track properties
-      const audioTrack = stream.getAudioTracks()[0];
-      if (audioTrack) {
-        console.log('Audio track properties:', {
-          enabled: audioTrack.enabled,
-          muted: audioTrack.muted,
-          readyState: audioTrack.readyState,
-          label: audioTrack.label
-        });
-      }
       
       // Create or get existing audio element for this user
       let audioElement = audioElementsRef.current.get(userId);
@@ -376,9 +353,6 @@ const Room: React.FC = () => {
           console.error('Audio playback error:', e);
           setError('Error playing received audio. Please check your audio output settings.');
         };
-
-        // Add volume control
-        audioElement.volume = 1.0;
       }
 
       // Set the stream as the source and play
@@ -413,6 +387,28 @@ const Room: React.FC = () => {
         });
       } else {
         console.log('ICE gathering completed for:', userId);
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log(`ICE connection state with ${userId}:`, pc.iceConnectionState);
+      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        console.log('Attempting to restart ICE for peer:', userId);
+        pc.restartIce();
+      }
+    };
+
+    pc.onicegatheringstatechange = () => {
+      console.log(`ICE gathering state with ${userId}:`, pc.iceGatheringState);
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log(`Connection state with ${userId}:`, pc.connectionState);
+      if (pc.connectionState === 'connected') {
+        console.log('Successfully connected to peer:', userId);
+      } else if (pc.connectionState === 'failed') {
+        setError('Connection failed. Please try sharing again.');
+        stopSharing();
       }
     };
 
