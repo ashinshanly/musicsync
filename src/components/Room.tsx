@@ -118,7 +118,6 @@ const Room: React.FC = () => {
           pc = createPeerConnection(from);
         } else {
           console.log('Using existing peer connection for:', from);
-          // If we have an existing connection, close it and create a new one
           pc.connection.close();
           pc = createPeerConnection(from);
         }
@@ -233,21 +232,14 @@ const Room: React.FC = () => {
           });
           console.log('Answer created successfully');
           
-          // Modify SDP to ensure audio is properly negotiated
+          // Set local description with the original answer first
+          await pc.connection.setLocalDescription(answer);
+          
+          // Then modify the SDP and send
           const modifiedAnswer = new RTCSessionDescription({
             type: 'answer',
             sdp: modifySDP(answer.sdp)
           });
-          
-          try {
-            console.log('Setting local description...');
-            console.log('Modified answer SDP:', modifiedAnswer.sdp);
-            await pc.connection.setLocalDescription(modifiedAnswer);
-            console.log('Local description set successfully');
-          } catch (err) {
-            console.error('Error setting local description:', err);
-            throw new Error('Failed to set local description');
-          }
           
           console.log('Sending answer to:', from);
           socketRef.current?.emit('answer', { answer: modifiedAnswer, to: from });
@@ -605,14 +597,14 @@ const Room: React.FC = () => {
                 offerToReceiveVideo: false
               });
               
-              // Modify SDP to ensure proper audio configuration
+              // Set local description first
+              await pc.connection.setLocalDescription(offer);
+              
+              // Then modify the SDP and send
               const modifiedOffer = new RTCSessionDescription({
                 type: 'offer',
                 sdp: modifySDP(offer.sdp)
               });
-              
-              console.log('Setting local description with modified offer');
-              await pc.connection.setLocalDescription(modifiedOffer);
               
               console.log('Sending offer to user:', user.id);
               socketRef.current?.emit('offer', { offer: modifiedOffer, to: user.id });
@@ -849,6 +841,7 @@ const Room: React.FC = () => {
     let hasAudio = false;
     let bundleGroup: string | null = null;
     let audioSectionIndex = -1;
+    let hasSendRecv = false;
     
     // First pass: find audio section and bundle group
     for (let i = 0; i < lines.length; i++) {
@@ -866,6 +859,10 @@ const Room: React.FC = () => {
         audioSectionIndex = i;
         console.log('Found audio section at index:', i);
       }
+
+      if (line.startsWith('a=sendrecv')) {
+        hasSendRecv = true;
+      }
     }
     
     // Second pass: process and modify lines
@@ -880,7 +877,6 @@ const Room: React.FC = () => {
       // If this is an audio section, ensure it has the correct MID
       if (line.startsWith('m=audio')) {
         modifiedLines.push(line);
-        // Add MID after the m= line and c= line
         continue;
       }
       
@@ -920,7 +916,7 @@ const Room: React.FC = () => {
     }
     
     // Add direction attribute if not present
-    if (!modifiedLines.some(line => line.startsWith('a=sendrecv'))) {
+    if (!hasSendRecv) {
       modifiedLines.push('a=sendrecv');
     }
     
