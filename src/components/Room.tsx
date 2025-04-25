@@ -561,6 +561,21 @@ const Room: React.FC = () => {
         stream.getVideoTracks().forEach(track => track.stop());
       }
 
+      // Verify stream properties
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        console.log('Stream properties:', {
+          enabled: audioTrack.enabled,
+          readyState: audioTrack.readyState,
+          label: audioTrack.label,
+          kind: audioTrack.kind,
+          id: audioTrack.id
+        });
+
+        // Ensure track is enabled
+        audioTrack.enabled = true;
+      }
+
       // Store the stream reference
       localStreamRef.current = stream;
 
@@ -572,9 +587,12 @@ const Room: React.FC = () => {
           console.log('Setting up connection for user:', user.id);
           const pc = createPeerConnection(user.id);
           
-          // Add tracks to the peer connection
+          // Add tracks to the peer connection with proper configuration
           stream.getAudioTracks().forEach(track => {
             console.log('Adding track to peer connection:', track.label);
+            // Ensure track is enabled
+            track.enabled = true;
+            // Add track with proper stream
             pc.connection.addTrack(track, stream);
           });
 
@@ -609,6 +627,23 @@ const Room: React.FC = () => {
 
           // Also set up negotiation needed handler for future renegotiations
           pc.connection.onnegotiationneeded = createAndSendOffer;
+
+          // Add connection state monitoring
+          pc.connection.onconnectionstatechange = () => {
+            console.log(`Connection state with ${user.id}:`, pc.connection.connectionState);
+            if (pc.connection.connectionState === 'connected') {
+              console.log('Successfully connected to peer:', user.id);
+              // Verify audio track is still enabled
+              const audioTrack = stream.getAudioTracks()[0];
+              if (audioTrack) {
+                console.log('Verifying audio track after connection:', {
+                  enabled: audioTrack.enabled,
+                  readyState: audioTrack.readyState
+                });
+                audioTrack.enabled = true;
+              }
+            }
+          };
         }
       });
 
@@ -878,6 +913,11 @@ const Room: React.FC = () => {
         modifiedLines.push('a=rtpmap:111 opus/48000/2');
         modifiedLines.push('a=rtcp-fb:111 transport-cc');
         modifiedLines.push('a=fmtp:111 minptime=10;useinbandfec=1');
+    }
+    
+    // Add direction attribute
+    if (!modifiedLines.some(line => line.startsWith('a=sendrecv'))) {
+        modifiedLines.push('a=sendrecv');
     }
     
     // Log the modified SDP for debugging
