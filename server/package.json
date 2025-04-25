@@ -2,7 +2,7 @@
   "name": "musicsync-server",
   "version": "1.0.0",
   "description": "WebSocket server for MusicSync",
-  "main": "server.ts",
+  "main": "dist/server.js",
   "engines": {
     "node": ">=18.0.0"
   },
@@ -10,7 +10,10 @@
     "start": "node dist/server.js",
     "build": "tsc",
     "dev": "nodemon --exec ts-node server.ts",
-    "postinstall": "npm run build"
+    "postinstall": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint . --ext .ts",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@types/cors": "^2.8.17",

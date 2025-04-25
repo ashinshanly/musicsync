@@ -129,8 +129,17 @@ io.on('connection', (socket) => {
         updateRoomStatus(room);
         const roomId = findRoomId(room);
         if (roomId) {
-          socket.to(roomId).emit('user-stopped-sharing', {
-            userId: socket.id
+          // Notify all users in the room that sharing has stopped
+          io.to(roomId).emit('user-stopped-sharing', {
+            userId: socket.id,
+            username: user.name
+          });
+          // Also emit a room-updated event to ensure all clients have the latest state
+          io.to(roomId).emit('room-updated', {
+            id: roomId,
+            name: `Room ${roomId}`,
+            userCount: room.users.length,
+            hasActiveStream: false
           });
         }
       }
