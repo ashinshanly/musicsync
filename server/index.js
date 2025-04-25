@@ -9,11 +9,12 @@ app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? 'https://ashinshanly.github.io' 
-      : 'http://localhost:3000',
-    methods: ['GET', 'POST']
-  }
+    origin: ['https://ashinshanly.github.io', 'http://localhost:3000'],
+    methods: ['GET', 'POST'],
+    credentials: true,
+    transports: ['websocket', 'polling']
+  },
+  allowEIO3: true
 });
 
 // Store active rooms
@@ -24,12 +25,14 @@ io.on('connection', (socket) => {
 
   // Handle get-live-rooms request
   socket.on('get-live-rooms', () => {
+    console.log('Received get-live-rooms request');
     const liveRooms = Array.from(rooms.entries()).map(([roomId, room]) => ({
       id: roomId,
       name: `Room ${roomId}`,
       userCount: room.users.length,
       hasActiveStream: room.users.some(user => user.isSharing)
     }));
+    console.log('Sending live rooms:', liveRooms);
     socket.emit('live-rooms', liveRooms);
   });
 

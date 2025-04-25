@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 
 interface Room {
   id: string;
@@ -19,20 +19,43 @@ const LiveRooms: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    const socket = io(SOCKET_URL);
+    // Initialize socket connection
+    socketRef.current = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      withCredentials: true
+    });
+
+    const socket = socketRef.current;
 
     socket.on('connect', () => {
+      console.log('Connected to server');
+      setError(null);
       socket.emit('get-live-rooms');
     });
 
-    socket.on('live-rooms', (liveRooms: Room[]) => {
-      setRooms(liveRooms);
+    socket.on('connect_error', (err) => {
+      console.error('Connection error:', err);
+      setError('Failed to connect to server. Please try again later.');
       setLoading(false);
     });
 
+    socket.on('disconnect', () => {
+      console.log('Disconnected from server');
+      setError('Connection lost. Attempting to reconnect...');
+    });
+
+    socket.on('live-rooms', (liveRooms: Room[]) => {
+      console.log('Received live rooms:', liveRooms);
+      setRooms(liveRooms);
+      setLoading(false);
+      setError(null);
+    });
+
     socket.on('room-updated', (updatedRoom: Room) => {
+      console.log('Room updated:', updatedRoom);
       setRooms(prevRooms => {
         const roomIndex = prevRooms.findIndex(room => room.id === updatedRoom.id);
         if (roomIndex === -1) {
@@ -45,15 +68,27 @@ const LiveRooms: React.FC = () => {
     });
 
     socket.on('room-closed', (roomId: string) => {
+      console.log('Room closed:', roomId);
       setRooms(prevRooms => prevRooms.filter(room => room.id !== roomId));
     });
 
-    socket.on('connect_error', () => {
-      setError('Failed to connect to server');
-      setLoading(false);
-    });
+    // Retry connection if it fails
+    let retryCount = 0;
+    const maxRetries = 3;
+    const retryInterval = setInterval(() => {
+      if (!socket.connected && retryCount < maxRetries) {
+        console.log('Retrying connection...');
+        socket.connect();
+        retryCount++;
+      } else if (retryCount >= maxRetries) {
+        clearInterval(retryInterval);
+        setError('Could not connect to server after multiple attempts. Please refresh the page.');
+        setLoading(false);
+      }
+    }, 5000);
 
     return () => {
+      clearInterval(retryInterval);
       socket.disconnect();
     };
   }, []);
@@ -67,6 +102,12 @@ const LiveRooms: React.FC = () => {
     navigate(`/room/${roomId}`);
   };
 
+  const handleRetry = () => {
+    setLoading(true);
+    setError(null);
+    socketRef.current?.connect();
+  };
+
   if (loading) {
     return (
       <div className="mt-8 text-center">
@@ -78,8 +119,16 @@ const LiveRooms: React.FC = () => {
 
   if (error) {
     return (
-      <div className="mt-8 text-center text-red-500">
-        <p>{error}</p>
+      <div className="mt-8 text-center">
+        <p className="text-red-500 mb-4">{error}</p>
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleRetry}
+          className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-all"
+        >
+          Retry Connection
+        </motion.button>
       </div>
     );
   }
