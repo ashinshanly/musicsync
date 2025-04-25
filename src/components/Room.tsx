@@ -578,8 +578,8 @@ const Room: React.FC = () => {
             pc.connection.addTrack(track, stream);
           });
 
-          // Create and send offer
-          pc.connection.onnegotiationneeded = async () => {
+          // Create and send offer immediately
+          const createAndSendOffer = async () => {
             try {
               console.log('Creating offer for user:', user.id);
               const offer = await pc.connection.createOffer({
@@ -603,6 +603,12 @@ const Room: React.FC = () => {
               setError('Failed to establish connection. Please try again.');
             }
           };
+
+          // Create and send offer immediately
+          createAndSendOffer();
+
+          // Also set up negotiation needed handler for future renegotiations
+          pc.connection.onnegotiationneeded = createAndSendOffer;
         }
       });
 
