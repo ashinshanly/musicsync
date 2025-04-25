@@ -10,9 +10,7 @@ interface Room {
   hasActiveStream: boolean;
 }
 
-const SOCKET_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://musicsync-server.onrender.com'
-  : 'http://localhost:3001';
+const SOCKET_URL = 'https://musicsync-server.onrender.com';
 
 const LiveRooms: React.FC = () => {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -20,77 +18,76 @@ const LiveRooms: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const socketRef = useRef<Socket | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<string>('Connecting...');
 
   useEffect(() => {
-    // Initialize socket connection
-    socketRef.current = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'],
-      withCredentials: true
-    });
-
-    const socket = socketRef.current;
-
-    socket.on('connect', () => {
-      console.log('Connected to server');
-      setError(null);
-      socket.emit('get-live-rooms');
-    });
-
-    socket.on('connect_error', (err) => {
-      console.error('Connection error:', err);
-      setError('Failed to connect to server. Please try again later.');
-      setLoading(false);
-    });
-
-    socket.on('disconnect', () => {
-      console.log('Disconnected from server');
-      setError('Connection lost. Attempting to reconnect...');
-    });
-
-    socket.on('live-rooms', (liveRooms: Room[]) => {
-      console.log('Received live rooms:', liveRooms);
-      setRooms(liveRooms);
-      setLoading(false);
-      setError(null);
-    });
-
-    socket.on('room-updated', (updatedRoom: Room) => {
-      console.log('Room updated:', updatedRoom);
-      setRooms(prevRooms => {
-        const roomIndex = prevRooms.findIndex(room => room.id === updatedRoom.id);
-        if (roomIndex === -1) {
-          return [...prevRooms, updatedRoom];
-        }
-        const newRooms = [...prevRooms];
-        newRooms[roomIndex] = updatedRoom;
-        return newRooms;
+    console.log('Initializing socket connection to:', SOCKET_URL);
+    
+    try {
+      socketRef.current = io(SOCKET_URL, {
+        transports: ['websocket', 'polling'],
+        reconnectionAttempts: 3,
+        reconnectionDelay: 1000,
+        timeout: 10000
       });
-    });
 
-    socket.on('room-closed', (roomId: string) => {
-      console.log('Room closed:', roomId);
-      setRooms(prevRooms => prevRooms.filter(room => room.id !== roomId));
-    });
+      const socket = socketRef.current;
 
-    // Retry connection if it fails
-    let retryCount = 0;
-    const maxRetries = 3;
-    const retryInterval = setInterval(() => {
-      if (!socket.connected && retryCount < maxRetries) {
-        console.log('Retrying connection...');
-        socket.connect();
-        retryCount++;
-      } else if (retryCount >= maxRetries) {
-        clearInterval(retryInterval);
-        setError('Could not connect to server after multiple attempts. Please refresh the page.');
+      socket.on('connect', () => {
+        console.log('Successfully connected to server');
+        setConnectionStatus('Connected');
+        setError(null);
+        console.log('Requesting live rooms...');
+        socket.emit('get-live-rooms');
+      });
+
+      socket.on('connect_error', (err) => {
+        console.error('Connection error:', err.message);
+        setConnectionStatus(`Connection error: ${err.message}`);
+        setError(`Failed to connect to server: ${err.message}`);
         setLoading(false);
-      }
-    }, 5000);
+      });
 
-    return () => {
-      clearInterval(retryInterval);
-      socket.disconnect();
-    };
+      socket.on('disconnect', (reason) => {
+        console.log('Disconnected from server:', reason);
+        setConnectionStatus(`Disconnected: ${reason}`);
+        setError('Connection lost. Attempting to reconnect...');
+      });
+
+      socket.on('live-rooms', (liveRooms: Room[]) => {
+        console.log('Received live rooms:', liveRooms);
+        setRooms(liveRooms);
+        setLoading(false);
+        setError(null);
+      });
+
+      socket.on('error', (err) => {
+        console.error('Socket error:', err);
+        setError(`Socket error: ${err}`);
+        setLoading(false);
+      });
+
+      // Add a timeout for the initial connection
+      const connectionTimeout = setTimeout(() => {
+        if (!socket.connected) {
+          console.log('Connection timeout');
+          setError('Connection timeout. Please try again.');
+          setLoading(false);
+        }
+      }, 10000);
+
+      return () => {
+        clearTimeout(connectionTimeout);
+        if (socket) {
+          console.log('Cleaning up socket connection');
+          socket.disconnect();
+        }
+      };
+    } catch (err) {
+      console.error('Error initializing socket:', err);
+      setError(`Failed to initialize connection: ${err}`);
+      setLoading(false);
+    }
   }, []);
 
   const handleJoinRoom = (roomId: string) => {
@@ -103,9 +100,13 @@ const LiveRooms: React.FC = () => {
   };
 
   const handleRetry = () => {
+    console.log('Retrying connection...');
     setLoading(true);
     setError(null);
-    socketRef.current?.connect();
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current.connect();
+    }
   };
 
   if (loading) {
@@ -113,6 +114,7 @@ const LiveRooms: React.FC = () => {
       <div className="mt-8 text-center">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
         <p className="text-gray-400 mt-2">Loading live rooms...</p>
+        <p className="text-sm text-gray-500 mt-1">{connectionStatus}</p>
       </div>
     );
   }

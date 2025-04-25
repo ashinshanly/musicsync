@@ -9,31 +9,43 @@ app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ['https://ashinshanly.github.io', 'http://localhost:3000'],
+    origin: '*',  // Allow all origins temporarily for debugging
     methods: ['GET', 'POST'],
-    credentials: true,
-    transports: ['websocket', 'polling']
+    credentials: true
   },
-  allowEIO3: true
+  transports: ['websocket', 'polling'],
+  pingTimeout: 10000,
+  pingInterval: 5000
 });
 
 // Store active rooms
 const rooms = new Map();
 
+// Add a basic route for testing
+app.get('/', (req, res) => {
+  res.send('MusicSync Server is running');
+});
+
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
+  console.log('Current transport:', socket.conn.transport.name);
 
   // Handle get-live-rooms request
   socket.on('get-live-rooms', () => {
-    console.log('Received get-live-rooms request');
-    const liveRooms = Array.from(rooms.entries()).map(([roomId, room]) => ({
-      id: roomId,
-      name: `Room ${roomId}`,
-      userCount: room.users.length,
-      hasActiveStream: room.users.some(user => user.isSharing)
-    }));
-    console.log('Sending live rooms:', liveRooms);
-    socket.emit('live-rooms', liveRooms);
+    console.log('Received get-live-rooms request from:', socket.id);
+    try {
+      const liveRooms = Array.from(rooms.entries()).map(([roomId, room]) => ({
+        id: roomId,
+        name: `Room ${roomId}`,
+        userCount: room.users.length,
+        hasActiveStream: room.users.some(user => user.isSharing)
+      }));
+      console.log('Sending live rooms:', liveRooms);
+      socket.emit('live-rooms', liveRooms);
+    } catch (error) {
+      console.error('Error handling get-live-rooms:', error);
+      socket.emit('error', 'Failed to get live rooms');
+    }
   });
 
   // Handle room joining
@@ -177,7 +189,13 @@ function updateRoomStatus(room) {
   }
 }
 
+// Error handling for the server
+server.on('error', (error) => {
+  console.error('Server error:', error);
+});
+
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  console.log('CORS settings:', io.engine.opts.cors);
 }); 
