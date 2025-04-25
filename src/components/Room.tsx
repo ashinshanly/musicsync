@@ -108,6 +108,8 @@ const Room: React.FC = () => {
     socketRef.current.on('offer', async ({ offer, from }) => {
       try {
         console.log('Received offer from:', from);
+        console.log('Offer SDP:', offer.sdp);
+        
         const pc = createPeerConnection(from);
         
         // Ensure ontrack is set up before setting remote description
@@ -155,57 +157,102 @@ const Room: React.FC = () => {
         };
         
         // Set the remote description
-        await pc.connection.setRemoteDescription(new RTCSessionDescription(offer));
+        try {
+          console.log('Setting remote description...');
+          await pc.connection.setRemoteDescription(new RTCSessionDescription(offer));
+          console.log('Remote description set successfully');
+        } catch (err) {
+          console.error('Error setting remote description:', err);
+          throw new Error('Failed to process offer from sharing user');
+        }
         
         // Create and send answer
-        const answer = await pc.connection.createAnswer({
-          offerToReceiveAudio: true,
-          offerToReceiveVideo: false
-        });
-        
-        // Modify SDP to ensure audio is properly negotiated
-        const modifiedAnswer = new RTCSessionDescription({
-          type: 'answer',
-          sdp: answer.sdp?.replace('a=mid:0', 'a=mid:audio') || ''
-        });
-        
-        await pc.connection.setLocalDescription(modifiedAnswer);
-        
-        console.log('Sending answer to:', from);
-        socketRef.current?.emit('answer', { answer: modifiedAnswer, to: from });
-      } catch (err) {
-        console.error('Error handling offer:', err);
-        setError('Failed to establish connection with sharing user. Please try again.');
-      }
-    });
-
-    socketRef.current.on('answer', async ({ answer, from }) => {
-      try {
-        const pc = peersRef.current.get(from);
-        if (pc) {
+        try {
+          console.log('Creating answer...');
+          const answer = await pc.connection.createAnswer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: false
+          });
+          console.log('Answer created successfully');
+          
           // Modify SDP to ensure audio is properly negotiated
           const modifiedAnswer = new RTCSessionDescription({
             type: 'answer',
             sdp: answer.sdp?.replace('a=mid:0', 'a=mid:audio') || ''
           });
           
-          await pc.connection.setRemoteDescription(modifiedAnswer);
-          console.log('Successfully set remote description from:', from);
+          try {
+            console.log('Setting local description...');
+            await pc.connection.setLocalDescription(modifiedAnswer);
+            console.log('Local description set successfully');
+          } catch (err) {
+            console.error('Error setting local description:', err);
+            throw new Error('Failed to set local description');
+          }
+          
+          console.log('Sending answer to:', from);
+          socketRef.current?.emit('answer', { answer: modifiedAnswer, to: from });
+        } catch (err) {
+          console.error('Error creating answer:', err);
+          throw new Error('Failed to create answer');
+        }
+      } catch (err) {
+        console.error('Error handling offer:', err);
+        setError(err instanceof Error ? err.message : 'Failed to establish connection with sharing user. Please try again.');
+      }
+    });
+
+    socketRef.current.on('answer', async ({ answer, from }) => {
+      try {
+        console.log('Received answer from:', from);
+        console.log('Answer SDP:', answer.sdp);
+        
+        const pc = peersRef.current.get(from);
+        if (pc) {
+          try {
+            console.log('Setting remote description from answer...');
+            // Modify SDP to ensure audio is properly negotiated
+            const modifiedAnswer = new RTCSessionDescription({
+              type: 'answer',
+              sdp: answer.sdp?.replace('a=mid:0', 'a=mid:audio') || ''
+            });
+            
+            await pc.connection.setRemoteDescription(modifiedAnswer);
+            console.log('Successfully set remote description from:', from);
+          } catch (err) {
+            console.error('Error setting remote description from answer:', err);
+            throw new Error('Failed to process answer from peer');
+          }
+        } else {
+          console.error('No peer connection found for:', from);
+          throw new Error('Connection not found');
         }
       } catch (err) {
         console.error('Error handling answer:', err);
+        setError(err instanceof Error ? err.message : 'Failed to process answer from peer');
       }
     });
 
     socketRef.current.on('ice-candidate', async ({ candidate, from }) => {
       try {
+        console.log('Received ICE candidate from:', from);
         const pc = peersRef.current.get(from);
         if (pc) {
-          await pc.connection.addIceCandidate(new RTCIceCandidate(candidate));
-          console.log('Successfully added ICE candidate from:', from);
+          try {
+            console.log('Adding ICE candidate...');
+            await pc.connection.addIceCandidate(new RTCIceCandidate(candidate));
+            console.log('Successfully added ICE candidate from:', from);
+          } catch (err) {
+            console.error('Error adding ICE candidate:', err);
+            throw new Error('Failed to process ICE candidate');
+          }
+        } else {
+          console.error('No peer connection found for ICE candidate from:', from);
+          throw new Error('Connection not found for ICE candidate');
         }
       } catch (err) {
         console.error('Error handling ICE candidate:', err);
+        setError(err instanceof Error ? err.message : 'Failed to process ICE candidate');
       }
     });
 
