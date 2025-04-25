@@ -2,9 +2,13 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 app.use(cors());
+
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, '../build')));
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -24,6 +28,11 @@ const rooms = new Map();
 // Add a basic route for testing
 app.get('/', (req, res) => {
   res.send('MusicSync Server is running');
+});
+
+// Add health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
 });
 
 io.on('connection', (socket) => {

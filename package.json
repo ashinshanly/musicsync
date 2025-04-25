@@ -31,7 +31,8 @@
     "eject": "react-scripts eject",
     "analyze": "source-map-explorer 'build/static/js/*.js'",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d build"
+    "deploy": "gh-pages -d build",
+    "dev": "concurrently \"npm run start\" \"cd server && npm run dev\""
   },
   "eslintConfig": {
     "extends": [

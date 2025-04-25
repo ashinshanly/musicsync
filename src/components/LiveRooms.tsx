@@ -10,7 +10,9 @@ interface Room {
   hasActiveStream: boolean;
 }
 
-const SOCKET_URL = 'https://musicsync-server.onrender.com';
+const SOCKET_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://musicsync-server.onrender.com'
+  : 'http://localhost:3001';
 
 const LiveRooms: React.FC = () => {
   const [rooms, setRooms] = useState<Room[]>([]);
