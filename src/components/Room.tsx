@@ -255,10 +255,58 @@ const Room: React.FC = () => {
       rtcpMuxPolicy: 'require'
     });
 
+    // Add comprehensive connection state monitoring
+    pc.oniceconnectionstatechange = () => {
+      console.log(`ICE connection state with ${userId}:`, pc.iceConnectionState);
+      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        console.log('Attempting to restart ICE for peer:', userId);
+        pc.restartIce();
+      }
+    };
+
+    pc.onicegatheringstatechange = () => {
+      console.log(`ICE gathering state with ${userId}:`, pc.iceGatheringState);
+    };
+
+    pc.onsignalingstatechange = () => {
+      console.log(`Signaling state with ${userId}:`, pc.signalingState);
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log(`Connection state with ${userId}:`, pc.connectionState);
+      if (pc.connectionState === 'connected') {
+        console.log('Successfully connected to peer:', userId);
+        // Verify audio tracks are properly connected
+        const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
+        if (sender?.track) {
+          console.log('Audio track is active:', sender.track.enabled);
+        }
+      } else if (pc.connectionState === 'failed') {
+        console.log('Connection failed with peer:', userId);
+        setError('Connection failed. Please try sharing again.');
+        stopSharing();
+      }
+    };
+
+    pc.ondatachannel = (event) => {
+      console.log('Data channel opened with peer:', userId);
+    };
+
     // Set up the ontrack handler for receiving audio
     pc.ontrack = (event) => {
       console.log('Received track from peer:', event.streams[0]);
       const [stream] = event.streams;
+      
+      // Verify track properties
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        console.log('Audio track properties:', {
+          enabled: audioTrack.enabled,
+          muted: audioTrack.muted,
+          readyState: audioTrack.readyState,
+          label: audioTrack.label
+        });
+      }
       
       // Create or get existing audio element for this user
       let audioElement = audioElementsRef.current.get(userId);
@@ -274,6 +322,9 @@ const Room: React.FC = () => {
           console.error('Audio playback error:', e);
           setError('Error playing received audio. Please check your audio output settings.');
         };
+
+        // Add volume control
+        audioElement.volume = 1.0;
       }
 
       // Set the stream as the source and play
@@ -306,29 +357,9 @@ const Room: React.FC = () => {
           candidate: event.candidate,
           to: userId
         });
+      } else {
+        console.log('ICE gathering completed for:', userId);
       }
-    };
-
-    pc.oniceconnectionstatechange = () => {
-      console.log(`ICE connection state with ${userId}:`, pc.iceConnectionState);
-      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-        console.log('Attempting to restart ICE for peer:', userId);
-        pc.restartIce();
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      console.log(`Connection state with ${userId}:`, pc.connectionState);
-      if (pc.connectionState === 'connected') {
-        console.log('Successfully connected to peer:', userId);
-      } else if (pc.connectionState === 'failed') {
-        setError('Connection failed. Please try sharing again.');
-        stopSharing();
-      }
-    };
-
-    pc.onsignalingstatechange = () => {
-      console.log(`Signaling state with ${userId}:`, pc.signalingState);
     };
 
     const peerConnection = { connection: pc };
@@ -389,6 +420,17 @@ const Room: React.FC = () => {
         stream.getVideoTracks().forEach(track => track.stop());
       }
 
+      // Verify stream properties
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        console.log('Stream properties:', {
+          enabled: audioTrack.enabled,
+          muted: audioTrack.muted,
+          readyState: audioTrack.readyState,
+          label: audioTrack.label
+        });
+      }
+
       // Store the stream reference
       localStreamRef.current = stream;
 
@@ -430,6 +472,38 @@ const Room: React.FC = () => {
             const [stream] = event.streams;
             if (stream.getAudioTracks().length > 0) {
               console.log('Audio track received from:', user.id);
+              // Verify track properties
+              const audioTrack = stream.getAudioTracks()[0];
+              if (audioTrack) {
+                console.log('Received track properties:', {
+                  enabled: audioTrack.enabled,
+                  muted: audioTrack.muted,
+                  readyState: audioTrack.readyState,
+                  label: audioTrack.label
+                });
+              }
+            }
+          };
+
+          // Handle negotiation needed
+          pc.connection.onnegotiationneeded = async () => {
+            console.log('Negotiation needed for peer:', user.id);
+            try {
+              const offer = await pc.connection.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: false
+              });
+              
+              // Modify SDP to ensure audio is properly negotiated
+              const modifiedOffer = new RTCSessionDescription({
+                type: 'offer',
+                sdp: offer.sdp?.replace('a=mid:0', 'a=mid:audio') || ''
+              });
+              
+              await pc.connection.setLocalDescription(modifiedOffer);
+              socketRef.current?.emit('offer', { offer: modifiedOffer, to: user.id });
+            } catch (err) {
+              console.error('Error creating offer:', err);
             }
           };
         }
