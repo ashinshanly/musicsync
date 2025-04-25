@@ -698,25 +698,24 @@ const Room: React.FC = () => {
     stopVisualization();
   };
 
-  const setupAudioVisualization = (stream: MediaStream) => {
+  const setupAudioVisualization = (stream: MediaStream, userId?: string) => {
     try {
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
 
-      if (analyserRef.current) {
-        analyserRef.current.disconnect();
-      }
-
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 256;
-      analyserRef.current.smoothingTimeConstant = 0.8;
+      // Create a new analyser for this stream
+      const analyser = audioContextRef.current.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
 
       const source = audioContextRef.current.createMediaStreamSource(stream);
-      source.connect(analyserRef.current);
+      source.connect(analyser);
       
-      // Don't connect to destination to prevent audio feedback
-      // analyserRef.current.connect(audioContextRef.current.destination);
+      // Store the analyser reference
+      if (userId) {
+        analyserRef.current = analyser;
+      }
       
       startVisualization();
     } catch (err) {
@@ -767,6 +766,10 @@ const Room: React.FC = () => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
+    if (analyserRef.current) {
+      analyserRef.current.disconnect();
+      analyserRef.current = null;
+    }
   };
 
   // Add autoplay unblock handler with more aggressive approach
@@ -809,7 +812,7 @@ const Room: React.FC = () => {
     };
   }, []);
 
-  // Modify the ontrack handler to better handle autoplay
+  // Modify the handleTrack function to properly handle visualization
   const handleTrack = (event: RTCTrackEvent, userId: string) => {
     console.log('Received track from peer:', event.streams[0]);
     const [stream] = event.streams;
@@ -856,7 +859,7 @@ const Room: React.FC = () => {
 
     // Set up visualization for the received stream
     if (stream.getAudioTracks().length > 0) {
-      setupAudioVisualization(stream);
+      setupAudioVisualization(stream, userId);
     }
   };
 
@@ -1006,7 +1009,7 @@ const Room: React.FC = () => {
     return modifiedSDP;
   };
 
-  // Add cleanup on component unmount
+  // Update the cleanup effect to properly handle visualization
   useEffect(() => {
     return () => {
       // Clean up all peer connections
@@ -1027,11 +1030,9 @@ const Room: React.FC = () => {
       iceCandidateQueuesRef.current.clear();
       
       // Clean up audio context and visualization
+      stopVisualization();
       if (audioContextRef.current) {
         audioContextRef.current.close();
-      }
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
       }
     };
   }, []);
