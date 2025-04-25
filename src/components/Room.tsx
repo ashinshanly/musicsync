@@ -107,13 +107,58 @@ const Room: React.FC = () => {
 
     socketRef.current.on('offer', async ({ offer, from }) => {
       try {
+        console.log('Received offer from:', from);
         const pc = createPeerConnection(from);
+        
+        // Set up the connection to receive audio
+        pc.connection.ontrack = (event) => {
+          console.log('Received track from peer:', event.streams[0]);
+          const [stream] = event.streams;
+          
+          // Create or get existing audio element for this user
+          let audioElement = audioElementsRef.current.get(from);
+          if (!audioElement) {
+            audioElement = new Audio();
+            audioElement.autoplay = true;
+            (audioElement as any).playsInline = true;
+            audioElement.id = `audio-${from}`;
+            audioElementsRef.current.set(from, audioElement);
+            
+            // Add error handling for audio playback
+            audioElement.onerror = (e) => {
+              console.error('Audio playback error:', e);
+              setError('Error playing received audio. Please check your audio output settings.');
+            };
+          }
+
+          // Set the stream as the source and play
+          audioElement.srcObject = stream;
+          audioElement.play().catch(error => {
+            console.error('Error playing audio:', error);
+            setError('Failed to play received audio. Try clicking anywhere on the page.');
+          });
+
+          // Set up visualization for the received stream
+          if (stream.getAudioTracks().length > 0) {
+            setupAudioVisualization(stream);
+          }
+        };
+
+        // Set the remote description
         await pc.connection.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.connection.createAnswer();
+        
+        // Create and send answer
+        const answer = await pc.connection.createAnswer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: false
+        });
         await pc.connection.setLocalDescription(answer);
+        
+        console.log('Sending answer to:', from);
         socketRef.current?.emit('answer', { answer, to: from });
       } catch (err) {
         console.error('Error handling offer:', err);
+        setError('Failed to establish connection with sharing user. Please try again.');
       }
     });
 
