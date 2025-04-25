@@ -35,6 +35,7 @@ const Room: React.FC = () => {
   const animationFrameRef = useRef<number>();
   const peersRef = useRef<Map<string, PeerConnection>>(new Map());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const iceCandidateQueuesRef = useRef<Map<string, RTCIceCandidate[]>>(new Map());
 
   useEffect(() => {
     // Initialize WebSocket connection
@@ -123,7 +124,7 @@ const Room: React.FC = () => {
         }
         
         // Initialize ICE candidate queue for this peer
-        const iceCandidateQueues = new Map<string, RTCIceCandidate[]>();
+        iceCandidateQueuesRef.current.set(from, []);
         
         // Set up the ontrack handler for receiving audio
         pc.connection.ontrack = (event) => {
@@ -189,7 +190,7 @@ const Room: React.FC = () => {
           console.log('Remote description set successfully');
           
           // Process any queued ICE candidates
-          const queue = iceCandidateQueues.get(from);
+          const queue = iceCandidateQueuesRef.current.get(from);
           if (queue && queue.length > 0) {
             console.log('Processing queued ICE candidates:', queue.length);
             for (const candidate of queue) {
@@ -199,7 +200,7 @@ const Room: React.FC = () => {
                 console.error('Error adding queued ICE candidate:', err);
               }
             }
-            iceCandidateQueues.delete(from);
+            iceCandidateQueuesRef.current.delete(from);
           }
         } catch (err) {
           console.error('Error setting remote description:', err);
@@ -369,6 +370,62 @@ const Room: React.FC = () => {
       rtcpMuxPolicy: 'require'
     });
 
+    // Add comprehensive connection state monitoring
+    pc.oniceconnectionstatechange = () => {
+      console.log(`ICE connection state with ${userId}:`, pc.iceConnectionState);
+      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        console.log('Attempting to restart ICE for peer:', userId);
+        pc.restartIce();
+      }
+    };
+
+    pc.onicegatheringstatechange = () => {
+      console.log(`ICE gathering state with ${userId}:`, pc.iceGatheringState);
+    };
+
+    pc.onsignalingstatechange = () => {
+      console.log(`Signaling state with ${userId}:`, pc.signalingState);
+      if (pc.signalingState === 'closed') {
+        console.log('Signaling state closed, cleaning up peer connection');
+        pc.close();
+        peersRef.current.delete(userId);
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log(`Connection state with ${userId}:`, pc.connectionState);
+      if (pc.connectionState === 'connected') {
+        console.log('Successfully connected to peer:', userId);
+        setError(null); // Clear any previous errors
+      } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        console.log('Connection failed or disconnected, attempting to recover');
+        setError('Connection lost. Attempting to reconnect...');
+        // Try to recover by creating a new connection
+        setTimeout(() => {
+          if (peersRef.current.has(userId)) {
+            const newPc = createPeerConnection(userId);
+            peersRef.current.set(userId, newPc);
+          }
+        }, 2000);
+      }
+    };
+
+    // Add negotiation needed handler
+    pc.onnegotiationneeded = async () => {
+      console.log('Negotiation needed for peer:', userId);
+      try {
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: false
+        });
+        await pc.setLocalDescription(offer);
+        socketRef.current?.emit('offer', { offer, to: userId });
+      } catch (err) {
+        console.error('Error during negotiation:', err);
+        setError('Failed to negotiate connection. Please try again.');
+      }
+    };
+
     // Set up the ontrack handler for receiving audio
     pc.ontrack = (event) => {
       console.log('Received track from peer:', event.streams[0]);
@@ -388,6 +445,9 @@ const Room: React.FC = () => {
           console.error('Audio playback error:', e);
           setError('Error playing received audio. Please check your audio output settings.');
         };
+
+        // Add volume control
+        audioElement.volume = 1.0;
       }
 
       // Set the stream as the source and play
@@ -425,32 +485,28 @@ const Room: React.FC = () => {
       }
     };
 
-    pc.oniceconnectionstatechange = () => {
-      console.log(`ICE connection state with ${userId}:`, pc.iceConnectionState);
-      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-        console.log('Attempting to restart ICE for peer:', userId);
-        pc.restartIce();
-      }
-    };
-
-    pc.onicegatheringstatechange = () => {
-      console.log(`ICE gathering state with ${userId}:`, pc.iceGatheringState);
-    };
-
-    pc.onconnectionstatechange = () => {
-      console.log(`Connection state with ${userId}:`, pc.connectionState);
-      if (pc.connectionState === 'connected') {
-        console.log('Successfully connected to peer:', userId);
-      } else if (pc.connectionState === 'failed') {
-        setError('Connection failed. Please try sharing again.');
-        stopSharing();
-      }
-    };
-
     const peerConnection = { connection: pc };
     peersRef.current.set(userId, peerConnection);
     return peerConnection;
   };
+
+  // Add connection status monitoring
+  useEffect(() => {
+    const checkConnectionStatus = () => {
+      peersRef.current.forEach((peer, userId) => {
+        if (peer.connection.connectionState === 'failed' || 
+            peer.connection.connectionState === 'disconnected') {
+          console.log('Detected failed connection for:', userId);
+          setError('Connection lost. Attempting to reconnect...');
+          const newPc = createPeerConnection(userId);
+          peersRef.current.set(userId, newPc);
+        }
+      });
+    };
+
+    const interval = setInterval(checkConnectionStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const startSharing = async () => {
     // Check if someone else is already sharing
@@ -823,9 +879,10 @@ const Room: React.FC = () => {
     // Split SDP into lines
     const lines = sdp.split('\r\n');
     let modifiedLines: string[] = [];
-    let audioMid = '0';
+    let audioMid = 'audio';
     let hasAudio = false;
     let bundleGroup: string | null = null;
+    let audioSectionIndex = -1;
     
     // First pass: find audio section and bundle group
     for (let i = 0; i < lines.length; i++) {
@@ -837,6 +894,7 @@ const Room: React.FC = () => {
       
       if (line.startsWith('m=audio')) {
         hasAudio = true;
+        audioSectionIndex = i;
         // Find the MID for this audio section
         for (let j = i + 1; j < lines.length; j++) {
           if (lines[j].startsWith('a=mid:')) {
@@ -857,36 +915,53 @@ const Room: React.FC = () => {
       }
       
       // If this is an audio section and it doesn't have a MID, add one
-      if (line.startsWith('m=audio') && !hasAudio) {
+      if (line.startsWith('m=audio')) {
         modifiedLines.push(line);
-        modifiedLines.push('a=mid:audio');
-        audioMid = 'audio';
-        hasAudio = true;
+        // Add MID immediately after the m= line
+        modifiedLines.push(`a=mid:${audioMid}`);
         continue;
       }
       
       modifiedLines.push(line);
     }
     
-    // Add the bundle group with the correct MID
-    if (bundleGroup) {
-      modifiedLines.push(`a=group:BUNDLE ${audioMid}`);
-    } else {
-      modifiedLines.push(`a=group:BUNDLE ${audioMid}`);
-    }
-    
-    // Ensure we have all necessary audio attributes
-    if (hasAudio) {
-      const hasOpus = modifiedLines.some(line => line.includes('opus/48000'));
-      if (!hasOpus) {
+    // If no audio section was found, add one
+    if (!hasAudio) {
+        modifiedLines.push('m=audio 9 UDP/TLS/RTP/SAVPF 111');
+        modifiedLines.push(`a=mid:${audioMid}`);
         modifiedLines.push('a=rtpmap:111 opus/48000/2');
         modifiedLines.push('a=rtcp-fb:111 transport-cc');
         modifiedLines.push('a=fmtp:111 minptime=10;useinbandfec=1');
-      }
+        modifiedLines.push('a=sendrecv');
     }
+    
+    // Add the bundle group with the correct MID
+    modifiedLines.push(`a=group:BUNDLE ${audioMid}`);
     
     return modifiedLines.join('\r\n');
   };
+
+  // Add cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      // Clean up all peer connections
+      peersRef.current.forEach((peer, userId) => {
+        console.log('Cleaning up peer connection for:', userId);
+        peer.connection.close();
+      });
+      peersRef.current.clear();
+      
+      // Clean up all audio elements
+      audioElementsRef.current.forEach(audio => {
+        audio.srcObject = null;
+        audio.remove();
+      });
+      audioElementsRef.current.clear();
+      
+      // Clean up ICE candidate queues
+      iceCandidateQueuesRef.current.clear();
+    };
+  }, []);
 
   return (
     <motion.div
