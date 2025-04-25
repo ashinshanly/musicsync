@@ -133,10 +133,17 @@ const Room: React.FC = () => {
 
           // Set the stream as the source and play
           audioElement.srcObject = stream;
-          audioElement.play().catch(error => {
-            console.error('Error playing audio:', error);
-            setError('Failed to play received audio. Try clicking anywhere on the page.');
-          });
+          const playPromise = audioElement.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+              console.error('Error playing audio:', error);
+              setError('Failed to play received audio. Try clicking anywhere on the page.');
+              // Try to play again after a short delay
+              setTimeout(() => {
+                audioElement.play().catch(console.error);
+              }, 1000);
+            });
+          }
 
           // Set up visualization for the received stream
           if (stream.getAudioTracks().length > 0) {
@@ -152,10 +159,17 @@ const Room: React.FC = () => {
           offerToReceiveAudio: true,
           offerToReceiveVideo: false
         });
-        await pc.connection.setLocalDescription(answer);
+        
+        // Modify SDP to ensure audio is properly negotiated
+        const modifiedAnswer = new RTCSessionDescription({
+          type: 'answer',
+          sdp: answer.sdp?.replace('a=mid:0', 'a=mid:audio') || ''
+        });
+        
+        await pc.connection.setLocalDescription(modifiedAnswer);
         
         console.log('Sending answer to:', from);
-        socketRef.current?.emit('answer', { answer, to: from });
+        socketRef.current?.emit('answer', { answer: modifiedAnswer, to: from });
       } catch (err) {
         console.error('Error handling offer:', err);
         setError('Failed to establish connection with sharing user. Please try again.');
@@ -166,7 +180,14 @@ const Room: React.FC = () => {
       try {
         const pc = peersRef.current.get(from);
         if (pc) {
-          await pc.connection.setRemoteDescription(new RTCSessionDescription(answer));
+          // Modify SDP to ensure audio is properly negotiated
+          const modifiedAnswer = new RTCSessionDescription({
+            type: 'answer',
+            sdp: answer.sdp?.replace('a=mid:0', 'a=mid:audio') || ''
+          });
+          
+          await pc.connection.setRemoteDescription(modifiedAnswer);
+          console.log('Successfully set remote description from:', from);
         }
       } catch (err) {
         console.error('Error handling answer:', err);
@@ -178,6 +199,7 @@ const Room: React.FC = () => {
         const pc = peersRef.current.get(from);
         if (pc) {
           await pc.connection.addIceCandidate(new RTCIceCandidate(candidate));
+          console.log('Successfully added ICE candidate from:', from);
         }
       } catch (err) {
         console.error('Error handling ICE candidate:', err);
@@ -211,6 +233,9 @@ const Room: React.FC = () => {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
         {
           urls: [
             'turn:openrelay.metered.ca:80',
@@ -221,7 +246,10 @@ const Room: React.FC = () => {
           credential: 'openrelayproject'
         }
       ],
-      iceCandidatePoolSize: 10
+      iceCandidatePoolSize: 10,
+      iceTransportPolicy: 'all',
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require'
     });
 
     // Set up the ontrack handler for receiving audio
@@ -247,10 +275,17 @@ const Room: React.FC = () => {
 
       // Set the stream as the source and play
       audioElement.srcObject = stream;
-      audioElement.play().catch(error => {
-        console.error('Error playing audio:', error);
-        setError('Failed to play received audio. Try clicking anywhere on the page.');
-      });
+      const playPromise = audioElement.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('Error playing audio:', error);
+          setError('Failed to play received audio. Try clicking anywhere on the page.');
+          // Try to play again after a short delay
+          setTimeout(() => {
+            audioElement.play().catch(console.error);
+          }, 1000);
+        });
+      }
 
       // Set up visualization for the received stream
       if (stream.getAudioTracks().length > 0) {
@@ -284,6 +319,10 @@ const Room: React.FC = () => {
         setError('Connection failed. Please try sharing again.');
         stopSharing();
       }
+    };
+
+    pc.onsignalingstatechange = () => {
+      console.log(`Signaling state with ${userId}:`, pc.signalingState);
     };
 
     const peerConnection = { connection: pc };
@@ -358,6 +397,9 @@ const Room: React.FC = () => {
           // Add tracks to the peer connection
           stream.getAudioTracks().forEach(track => {
             console.log('Adding track to peer connection:', track.label);
+            // Ensure track is enabled
+            track.enabled = true;
+            // Add track with proper stream
             pc.connection.addTrack(track, stream);
           });
 
@@ -369,9 +411,19 @@ const Room: React.FC = () => {
               // Try to reestablish the connection
               const newPc = createPeerConnection(user.id);
               stream.getAudioTracks().forEach(track => {
+                track.enabled = true;
                 newPc.connection.addTrack(track, stream);
               });
               peersRef.current.set(user.id, newPc);
+            }
+          };
+
+          // Handle track events
+          pc.connection.ontrack = (event) => {
+            console.log('Track event received from:', user.id);
+            const [stream] = event.streams;
+            if (stream.getAudioTracks().length > 0) {
+              console.log('Audio track received from:', user.id);
             }
           };
         }
@@ -386,11 +438,18 @@ const Room: React.FC = () => {
             if (pc) {
               console.log('Creating offer for user:', user.id);
               const offer = await pc.connection.createOffer({
-                offerToReceiveAudio: false,
+                offerToReceiveAudio: true,
                 offerToReceiveVideo: false
               });
-              await pc.connection.setLocalDescription(offer);
-              return { offer, to: user.id };
+              
+              // Modify SDP to ensure audio is properly negotiated
+              const modifiedOffer = new RTCSessionDescription({
+                type: 'offer',
+                sdp: offer.sdp?.replace('a=mid:0', 'a=mid:audio') || ''
+              });
+              
+              await pc.connection.setLocalDescription(modifiedOffer);
+              return { offer: modifiedOffer, to: user.id };
             }
           })
       );
