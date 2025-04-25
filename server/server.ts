@@ -1,208 +1,222 @@
 import express from 'express';
 import { createServer } from 'http';
-import { Server, Socket } from 'socket.io';
+import { Server } from 'socket.io';
 import cors from 'cors';
+import path from 'path';
 
 const app = express();
 app.use(cors());
 
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, '../build')));
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.NODE_ENV === 'production'
-      ? ["https://ashinshanly.github.io"]
-      : ["http://localhost:3000"],
-    methods: ["GET", "POST"]
-  }
+    origin: '*',  // Allow all origins temporarily for debugging
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  transports: ['websocket', 'polling'],
+  pingTimeout: 10000,
+  pingInterval: 5000
 });
 
-interface User {
-  id: string;
-  name: string;
-  isSharing: boolean;
-}
+// Store active rooms
+const rooms = new Map<string, any>();
 
-interface Room {
-  id: string;
-  users: User[];
-  createdAt: Date;
-}
+// Add a basic route for testing
+app.get('/', (req, res) => {
+  res.send('MusicSync Server is running');
+});
 
-const rooms = new Map<string, Room>();
-
-// Clean up inactive rooms every hour
-setInterval(() => {
-  const now = new Date();
-  rooms.forEach((room, roomId) => {
-    const hoursSinceCreation = (now.getTime() - room.createdAt.getTime()) / (1000 * 60 * 60);
-    if (hoursSinceCreation > 24 && room.users.length === 0) {
-      rooms.delete(roomId);
-      console.log(`Cleaned up inactive room: ${roomId}`);
-    }
-  });
-}, 1000 * 60 * 60); // Run every hour
-
-const handleSocketError = (socket: Socket, error: Error) => {
-  console.error(`Socket ${socket.id} error:`, error);
-  socket.emit('error', { message: 'An error occurred' });
-};
+// Add health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
+  console.log('Current transport:', socket.conn.transport.name);
 
-  socket.on('join-room', ({ roomId, username }) => {
+  // Handle get-live-rooms request
+  socket.on('get-live-rooms', () => {
+    console.log('Received get-live-rooms request from:', socket.id);
     try {
-      if (!roomId || !username) {
-        throw new Error('Room ID and username are required');
-      }
-
-      // Create room if it doesn't exist
-      if (!rooms.has(roomId)) {
-        rooms.set(roomId, { 
-          id: roomId, 
-          users: [],
-          createdAt: new Date()
-        });
-        console.log(`Created new room: ${roomId}`);
-      }
-
-      const room = rooms.get(roomId)!;
-      
-      // Check if username is already taken in the room
-      if (room.users.some(u => u.name === username)) {
-        socket.emit('error', { 
-          message: 'Username is already taken in this room' 
-        });
-        return;
-      }
-
-      const user: User = { 
-        id: socket.id, 
-        name: username, 
-        isSharing: false 
-      };
-      
-      room.users.push(user);
-      socket.join(roomId);
-      
-      // Notify all users in the room
-      io.to(roomId).emit('user-joined', { 
-        users: room.users,
-        joinedUser: user
-      });
-      
-      console.log(`User ${username} joined room ${roomId}`);
-
-      // Handle WebRTC signaling
-      socket.on('offer', ({ offer, to }) => {
-        try {
-          if (!offer || !to) {
-            throw new Error('Invalid offer data');
-          }
-          socket.to(to).emit('offer', { 
-            offer, 
-            from: socket.id 
-          });
-        } catch (error) {
-          handleSocketError(socket, error as Error);
-        }
-      });
-
-      socket.on('answer', ({ answer, to }) => {
-        try {
-          if (!answer || !to) {
-            throw new Error('Invalid answer data');
-          }
-          socket.to(to).emit('answer', { 
-            answer, 
-            from: socket.id 
-          });
-        } catch (error) {
-          handleSocketError(socket, error as Error);
-        }
-      });
-
-      socket.on('ice-candidate', ({ candidate, to }) => {
-        try {
-          if (!candidate || !to) {
-            throw new Error('Invalid ICE candidate data');
-          }
-          socket.to(to).emit('ice-candidate', { 
-            candidate, 
-            from: socket.id 
-          });
-        } catch (error) {
-          handleSocketError(socket, error as Error);
-        }
-      });
-
-      socket.on('start-sharing', () => {
-        try {
-          const user = room.users.find(u => u.id === socket.id);
-          if (user) {
-            user.isSharing = true;
-            io.to(roomId).emit('user-started-sharing', { 
-              userId: socket.id,
-              username: user.name 
-            });
-            console.log(`User ${user.name} started sharing in room ${roomId}`);
-          }
-        } catch (error) {
-          handleSocketError(socket, error as Error);
-        }
-      });
-
-      socket.on('stop-sharing', () => {
-        try {
-          const user = room.users.find(u => u.id === socket.id);
-          if (user) {
-            user.isSharing = false;
-            io.to(roomId).emit('user-stopped-sharing', { 
-              userId: socket.id,
-              username: user.name 
-            });
-            console.log(`User ${user.name} stopped sharing in room ${roomId}`);
-          }
-        } catch (error) {
-          handleSocketError(socket, error as Error);
-        }
-      });
+      const liveRooms = Array.from(rooms.entries()).map(([roomId, room]) => ({
+        id: roomId,
+        name: `Room ${roomId}`,
+        userCount: room.users.length,
+        hasActiveStream: room.users.some((user: any) => user.isSharing)
+      }));
+      console.log('Sending live rooms:', liveRooms);
+      socket.emit('live-rooms', liveRooms);
     } catch (error) {
-      handleSocketError(socket, error as Error);
+      console.error('Error handling get-live-rooms:', error);
+      socket.emit('error', 'Failed to get live rooms');
     }
   });
 
+  // Handle room joining
+  socket.on('join-room', ({ roomId, username }: { roomId: string; username: string }) => {
+    // Leave previous room if any
+    const previousRoom = Array.from(rooms.values()).find(room => 
+      room.users.some((user: any) => user.id === socket.id)
+    );
+    if (previousRoom) {
+      previousRoom.users = previousRoom.users.filter((user: any) => user.id !== socket.id);
+      if (previousRoom.users.length === 0) {
+        const roomId = Array.from(rooms.entries())
+          .find(([_, room]) => room === previousRoom)?.[0];
+        if (roomId) {
+          rooms.delete(roomId);
+          io.emit('room-closed', roomId);
+        }
+      } else {
+        updateRoomStatus(previousRoom);
+      }
+    }
+
+    // Join new room
+    socket.join(roomId);
+    let room = rooms.get(roomId);
+    if (!room) {
+      room = { users: [] };
+      rooms.set(roomId, room);
+    }
+    
+    const user = {
+      id: socket.id,
+      name: username,
+      isSharing: false
+    };
+    room.users.push(user);
+    
+    // Notify room update
+    updateRoomStatus(room);
+    
+    // Send current users to the new user
+    socket.emit('user-joined', { users: room.users });
+    socket.to(roomId).emit('user-joined', { users: room.users });
+  });
+
+  // Handle start sharing
+  socket.on('start-sharing', () => {
+    const room = findUserRoom(socket.id);
+    if (room) {
+      const user = room.users.find((u: any) => u.id === socket.id);
+      if (user) {
+        user.isSharing = true;
+        updateRoomStatus(room);
+        const roomId = findRoomId(room);
+        if (roomId) {
+          socket.to(roomId).emit('user-started-sharing', {
+            userId: socket.id,
+            username: user.name
+          });
+        }
+      }
+    }
+  });
+
+  // Handle stop sharing
+  socket.on('stop-sharing', () => {
+    const room = findUserRoom(socket.id);
+    if (room) {
+      const user = room.users.find((u: any) => u.id === socket.id);
+      if (user) {
+        user.isSharing = false;
+        updateRoomStatus(room);
+        const roomId = findRoomId(room);
+        if (roomId) {
+          socket.to(roomId).emit('user-stopped-sharing', {
+            userId: socket.id
+          });
+        }
+      }
+    }
+  });
+
+  // Handle disconnection
   socket.on('disconnect', () => {
-    try {
-      rooms.forEach((room, roomId) => {
-        const userIndex = room.users.findIndex(u => u.id === socket.id);
-        if (userIndex !== -1) {
-          const user = room.users[userIndex];
-          room.users.splice(userIndex, 1);
-          
-          if (room.users.length === 0) {
-            rooms.delete(roomId);
-            console.log(`Room ${roomId} deleted - no users remaining`);
-          } else {
-            io.to(roomId).emit('user-left', { 
-              userId: socket.id,
-              username: user.name,
-              wasSharing: user.isSharing,
-              users: room.users 
-            });
-          }
-          
-          console.log(`User ${user.name} left room ${roomId}`);
+    console.log('User disconnected:', socket.id);
+    const room = findUserRoom(socket.id);
+    if (room) {
+      const user = room.users.find((u: any) => u.id === socket.id);
+      const wasSharing = user?.isSharing || false;
+      room.users = room.users.filter((u: any) => u.id !== socket.id);
+      
+      if (room.users.length === 0) {
+        const roomId = findRoomId(room);
+        if (roomId) {
+          rooms.delete(roomId);
+          io.emit('room-closed', roomId);
         }
-      });
-    } catch (error) {
-      console.error('Error handling disconnect:', error);
+      } else {
+        updateRoomStatus(room);
+        if (wasSharing) {
+          const roomId = findRoomId(room);
+          if (roomId) {
+            socket.to(roomId).emit('user-stopped-sharing', { userId: socket.id });
+          }
+        }
+        const roomId = findRoomId(room);
+        if (roomId) {
+          socket.to(roomId).emit('user-left', {
+            userId: socket.id,
+            wasSharing,
+            users: room.users
+          });
+        }
+      }
     }
   });
+
+  // Handle WebRTC signaling
+  socket.on('offer', ({ offer, to }: { offer: any; to: string }) => {
+    socket.to(to).emit('offer', { offer, from: socket.id });
+  });
+
+  socket.on('answer', ({ answer, to }: { answer: any; to: string }) => {
+    socket.to(to).emit('answer', { answer, from: socket.id });
+  });
+
+  socket.on('ice-candidate', ({ candidate, to }: { candidate: any; to: string }) => {
+    socket.to(to).emit('ice-candidate', { candidate, from: socket.id });
+  });
+});
+
+// Helper functions
+function findUserRoom(userId: string) {
+  return Array.from(rooms.values()).find(room => 
+    room.users.some((user: any) => user.id === userId)
+  );
+}
+
+function findRoomId(targetRoom: any) {
+  return Array.from(rooms.entries())
+    .find(([_, room]) => room === targetRoom)?.[0];
+}
+
+function updateRoomStatus(room: any) {
+  const roomId = findRoomId(room);
+  if (roomId) {
+    io.emit('room-updated', {
+      id: roomId,
+      name: `Room ${roomId}`,
+      userCount: room.users.length,
+      hasActiveStream: room.users.some((user: any) => user.isSharing)
+    });
+  }
+}
+
+// Error handling for the server
+httpServer.on('error', (error) => {
+  console.error('Server error:', error);
 });
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Server is running on port ${PORT}`);
+  console.log('CORS settings:', io.engine.opts.cors);
 }); 

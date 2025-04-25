@@ -2,13 +2,13 @@
   "name": "musicsync-server",
   "version": "1.0.0",
   "description": "WebSocket server for MusicSync",
-  "main": "dist/server.js",
+  "main": "server.ts",
   "engines": {
     "node": ">=18.0.0"
   },
   "scripts": {
     "start": "node dist/server.js",
-    "build": "tsc && cp -r src/* dist/",
+    "build": "tsc",
     "dev": "nodemon --exec ts-node server.ts",
     "postinstall": "npm run build"
   },
