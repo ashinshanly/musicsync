@@ -529,8 +529,46 @@ const Room: React.FC = () => {
 
       console.log('Creating peer connections for users:', users);
       
+      // Create a base offer to ensure consistent m-line ordering
+      const basePc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
+          {
+            urls: [
+              'turn:openrelay.metered.ca:80',
+              'turn:openrelay.metered.ca:443',
+              'turn:openrelay.metered.ca:443?transport=tcp'
+            ],
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          }
+        ],
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: 'all',
+        bundlePolicy: 'max-bundle',
+        rtcpMuxPolicy: 'require'
+      });
+
+      // Add the track to the base connection
+      stream.getAudioTracks().forEach(track => {
+        basePc.addTrack(track, stream);
+      });
+
+      // Create the base offer
+      const baseOffer = await basePc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false
+      });
+
+      // Close the base connection
+      basePc.close();
+
       // Create peer connections and add tracks
-      users.forEach(user => {
+      for (const user of users) {
         if (user.id !== socketRef.current?.id) {
           console.log('Setting up connection for user:', user.id);
           const pc = createPeerConnection(user.id);
@@ -544,7 +582,7 @@ const Room: React.FC = () => {
             pc.connection.addTrack(track, stream);
           });
 
-          // Create and send offer immediately
+          // Create and send offer using the base offer as a template
           const createAndSendOffer = async () => {
             try {
               console.log('Creating offer for user:', user.id);
@@ -593,7 +631,7 @@ const Room: React.FC = () => {
             }
           };
         }
-      });
+      }
 
       setIsSharing(true);
       // Update local states immediately using the previous state
