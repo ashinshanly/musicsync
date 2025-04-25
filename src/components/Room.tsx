@@ -794,15 +794,19 @@ const Room: React.FC = () => {
     let modifiedLines: string[] = [];
     let audioMid = '0';
     let hasAudio = false;
+    let bundleGroup: string | null = null;
     
-    // Process each line
+    // First pass: find audio section and bundle group
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
-      // Find audio m= line
+      if (line.startsWith('a=group:BUNDLE')) {
+        bundleGroup = line;
+      }
+      
       if (line.startsWith('m=audio')) {
         hasAudio = true;
-        // Extract the MID from the a=mid line that follows
+        // Find the MID for this audio section
         for (let j = i + 1; j < lines.length; j++) {
           if (lines[j].startsWith('a=mid:')) {
             audioMid = lines[j].split('a=mid:')[1];
@@ -810,37 +814,45 @@ const Room: React.FC = () => {
           }
         }
       }
+    }
+    
+    // Second pass: process and modify lines
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       
-      // Keep the original line
+      // Skip the original bundle group, we'll add our own
+      if (line.startsWith('a=group:BUNDLE')) {
+        continue;
+      }
+      
+      // If this is an audio section and it doesn't have a MID, add one
+      if (line.startsWith('m=audio') && !hasAudio) {
+        modifiedLines.push(line);
+        modifiedLines.push('a=mid:audio');
+        audioMid = 'audio';
+        hasAudio = true;
+        continue;
+      }
+      
       modifiedLines.push(line);
     }
     
-    // If no audio section found, add one
-    if (!hasAudio) {
-      modifiedLines.push('m=audio 9 UDP/TLS/RTP/SAVPF 111 103 104 9 0 8 106 105 13 110 112 113 126');
-      modifiedLines.push('c=IN IP4 0.0.0.0');
-      modifiedLines.push('a=rtcp:9 IN IP4 0.0.0.0');
-      modifiedLines.push('a=ice-ufrag:audio');
-      modifiedLines.push('a=ice-pwd:audio');
-      modifiedLines.push('a=ice-options:trickle');
-      modifiedLines.push('a=fingerprint:sha-256 audio');
-      modifiedLines.push('a=setup:actpass');
-      modifiedLines.push('a=mid:audio');
-      modifiedLines.push('a=sendrecv');
-      modifiedLines.push('a=rtcp-mux');
-      modifiedLines.push('a=rtpmap:111 opus/48000/2');
-      modifiedLines.push('a=rtcp-fb:111 transport-cc');
-      modifiedLines.push('a=fmtp:111 minptime=10;useinbandfec=1');
-      audioMid = 'audio';
+    // Add the bundle group with the correct MID
+    if (bundleGroup) {
+      modifiedLines.push(`a=group:BUNDLE ${audioMid}`);
+    } else {
+      modifiedLines.push(`a=group:BUNDLE ${audioMid}`);
     }
     
-    // Update BUNDLE group to use the correct MID
-    modifiedLines = modifiedLines.map(line => {
-      if (line.startsWith('a=group:BUNDLE')) {
-        return `a=group:BUNDLE ${audioMid}`;
+    // Ensure we have all necessary audio attributes
+    if (hasAudio) {
+      const hasOpus = modifiedLines.some(line => line.includes('opus/48000'));
+      if (!hasOpus) {
+        modifiedLines.push('a=rtpmap:111 opus/48000/2');
+        modifiedLines.push('a=rtcp-fb:111 transport-cc');
+        modifiedLines.push('a=fmtp:111 minptime=10;useinbandfec=1');
       }
-      return line;
-    });
+    }
     
     return modifiedLines.join('\r\n');
   };
