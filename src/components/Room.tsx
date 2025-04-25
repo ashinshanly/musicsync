@@ -304,9 +304,9 @@ const Room: React.FC = () => {
         console.log('Requesting microphone access...');
         stream = await navigator.mediaDevices.getUserMedia({
           audio: {
-            echoCancellation: true, // Enable echo cancellation for microphone
-            noiseSuppression: true, // Enable noise suppression for clearer voice
-            autoGainControl: true,  // Enable auto gain for better voice levels
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
           },
           video: false
         });
@@ -342,37 +342,39 @@ const Room: React.FC = () => {
 
       console.log('Creating peer connections for users:', users);
       
-      // Add tracks to all peer connections
+      // Create peer connections for all users first
+      const peerConnections = new Map<string, RTCPeerConnection>();
       users.forEach(user => {
         if (user.id !== socketRef.current?.id) {
-          console.log('Setting up connection for user:', user.id);
+          console.log('Creating peer connection for user:', user.id);
           const pc = createPeerConnection(user.id);
-          
-          stream.getAudioTracks().forEach(track => {
-            console.log('Adding track to peer connection:', track.label);
-            pc.connection.addTrack(track, stream);
-          });
+          peerConnections.set(user.id, pc.connection);
         }
+      });
+
+      // Add tracks to all peer connections
+      peerConnections.forEach((pc, userId) => {
+        console.log('Adding tracks to peer connection for user:', userId);
+        stream.getAudioTracks().forEach(track => {
+          console.log('Adding track:', track.label);
+          pc.addTrack(track, stream);
+        });
       });
 
       // Create and send offers to all peers
       const offers = await Promise.all(
-        users
-          .filter(user => user.id !== socketRef.current?.id)
-          .map(async user => {
-            const pc = peersRef.current.get(user.id);
-            if (pc) {
-              console.log('Creating offer for user:', user.id);
-              const offer = await pc.connection.createOffer({
-                offerToReceiveAudio: true,
-                offerToReceiveVideo: false
-              });
-              await pc.connection.setLocalDescription(offer);
-              return { offer, to: user.id };
-            }
-          })
+        Array.from(peerConnections.entries()).map(async ([userId, pc]) => {
+          console.log('Creating offer for user:', userId);
+          const offer = await pc.createOffer({
+            offerToReceiveAudio: false,
+            offerToReceiveVideo: false
+          });
+          await pc.setLocalDescription(offer);
+          return { offer, to: userId };
+        })
       );
 
+      // Send all offers
       offers.forEach(offer => {
         if (offer) {
           console.log('Sending offer to user:', offer.to);
