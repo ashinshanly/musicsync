@@ -834,8 +834,8 @@ const Room: React.FC = () => {
     
     console.log('Original SDP:', sdp);
     
-    // Split SDP into lines
-    const lines = sdp.split('\r\n');
+    // Split SDP into lines and filter out empty lines
+    const lines = sdp.split('\r\n').filter(line => line.trim() !== '');
     let modifiedLines: string[] = [];
     let audioMid = '0';
     let hasAudio = false;
@@ -925,8 +925,8 @@ const Room: React.FC = () => {
       modifiedLines.push('a=ice-options:trickle');
     }
     
-    // Validate the modified SDP
-    const modifiedSDP = modifiedLines.join('\r\n');
+    // Ensure proper line endings
+    const modifiedSDP = modifiedLines.join('\r\n') + '\r\n';
     console.log('Modified SDP:', modifiedSDP);
     
     // Verify SDP structure
