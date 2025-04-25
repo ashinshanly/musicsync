@@ -117,6 +117,9 @@ const Room: React.FC = () => {
           pc = createPeerConnection(from);
         } else {
           console.log('Using existing peer connection for:', from);
+          // If we have an existing connection, close it and create a new one
+          pc.connection.close();
+          pc = createPeerConnection(from);
         }
         
         // Initialize ICE candidate queue for this peer
