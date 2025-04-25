@@ -914,11 +914,16 @@ const Room: React.FC = () => {
         continue;
       }
       
-      // If this is an audio section, ensure it has a MID
+      // If this is an audio section, ensure it has the correct MID
       if (line.startsWith('m=audio')) {
         modifiedLines.push(line);
         // Add MID immediately after the m= line
         modifiedLines.push(`a=mid:${audioMid}`);
+        continue;
+      }
+      
+      // Skip any existing MID lines for audio sections
+      if (line.startsWith('a=mid:') && hasAudio) {
         continue;
       }
       
