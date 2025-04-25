@@ -561,17 +561,6 @@ const Room: React.FC = () => {
         stream.getVideoTracks().forEach(track => track.stop());
       }
 
-      // Verify stream properties
-      const audioTrack = stream.getAudioTracks()[0];
-      if (audioTrack) {
-        console.log('Stream properties:', {
-          enabled: audioTrack.enabled,
-          muted: audioTrack.muted,
-          readyState: audioTrack.readyState,
-          label: audioTrack.label
-        });
-      }
-
       // Store the stream reference
       localStreamRef.current = stream;
 
@@ -586,100 +575,34 @@ const Room: React.FC = () => {
           // Add tracks to the peer connection
           stream.getAudioTracks().forEach(track => {
             console.log('Adding track to peer connection:', track.label);
-            // Ensure track is enabled
-            track.enabled = true;
-            // Add track with proper stream
             pc.connection.addTrack(track, stream);
           });
 
-          // Handle connection state changes
-          pc.connection.onconnectionstatechange = () => {
-            console.log(`Connection state with ${user.id}:`, pc.connection.connectionState);
-            if (pc.connection.connectionState === 'failed' || pc.connection.connectionState === 'disconnected') {
-              console.log('Attempting to reconnect to peer:', user.id);
-              // Try to reestablish the connection
-              const newPc = createPeerConnection(user.id);
-              stream.getAudioTracks().forEach(track => {
-                track.enabled = true;
-                newPc.connection.addTrack(track, stream);
-              });
-              peersRef.current.set(user.id, newPc);
-            }
-          };
-
-          // Handle track events
-          pc.connection.ontrack = (event) => {
-            console.log('Track event received from:', user.id);
-            const [stream] = event.streams;
-            if (stream.getAudioTracks().length > 0) {
-              console.log('Audio track received from:', user.id);
-              // Verify track properties
-              const audioTrack = stream.getAudioTracks()[0];
-              if (audioTrack) {
-                console.log('Received track properties:', {
-                  enabled: audioTrack.enabled,
-                  muted: audioTrack.muted,
-                  readyState: audioTrack.readyState,
-                  label: audioTrack.label
-                });
-              }
-            }
-          };
-
-          // Handle negotiation needed
+          // Create and send offer
           pc.connection.onnegotiationneeded = async () => {
-            console.log('Negotiation needed for peer:', user.id);
             try {
-              const offer = await pc.connection.createOffer({
-                offerToReceiveAudio: true,
-                offerToReceiveVideo: false
-              });
-              
-              // Modify SDP to ensure audio is properly negotiated
-              const modifiedOffer = new RTCSessionDescription({
-                type: 'offer',
-                sdp: offer.sdp?.replace('a=mid:0', 'a=mid:audio') || ''
-              });
-              
-              await pc.connection.setLocalDescription(modifiedOffer);
-              socketRef.current?.emit('offer', { offer: modifiedOffer, to: user.id });
-            } catch (err) {
-              console.error('Error creating offer:', err);
-            }
-          };
-        }
-      });
-
-      // Create and send offers to all peers
-      const offers = await Promise.all(
-        users
-          .filter(user => user.id !== socketRef.current?.id)
-          .map(async user => {
-            const pc = peersRef.current.get(user.id);
-            if (pc) {
               console.log('Creating offer for user:', user.id);
               const offer = await pc.connection.createOffer({
                 offerToReceiveAudio: true,
                 offerToReceiveVideo: false
               });
               
-              // Modify SDP to ensure audio is properly negotiated
+              // Modify SDP to ensure proper audio configuration
               const modifiedOffer = new RTCSessionDescription({
                 type: 'offer',
-                sdp: offer.sdp?.replace('a=mid:0', 'a=mid:audio') || ''
+                sdp: modifySDP(offer.sdp)
               });
               
+              console.log('Setting local description with modified offer');
               await pc.connection.setLocalDescription(modifiedOffer);
-              return { offer: modifiedOffer, to: user.id };
+              
+              console.log('Sending offer to user:', user.id);
+              socketRef.current?.emit('offer', { offer: modifiedOffer, to: user.id });
+            } catch (err) {
+              console.error('Error creating/sending offer:', err);
+              setError('Failed to establish connection. Please try again.');
             }
-          })
-      );
-
-      // Send all offers
-      offers.forEach(offer => {
-        if (offer) {
-          console.log('Sending offer to user:', offer.to);
-          socketRef.current?.emit('offer', offer);
+          };
         }
       });
 
@@ -976,6 +899,14 @@ const Room: React.FC = () => {
       
       // Clean up ICE candidate queues
       iceCandidateQueuesRef.current.clear();
+      
+      // Clean up audio context and visualization
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
     };
   }, []);
 
