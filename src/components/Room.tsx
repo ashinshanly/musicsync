@@ -110,7 +110,7 @@ const Room: React.FC = () => {
         console.log('Received offer from:', from);
         const pc = createPeerConnection(from);
         
-        // Set up the connection to receive audio
+        // Ensure ontrack is set up before setting remote description
         pc.connection.ontrack = (event) => {
           console.log('Received track from peer:', event.streams[0]);
           const [stream] = event.streams;
@@ -143,7 +143,7 @@ const Room: React.FC = () => {
             setupAudioVisualization(stream);
           }
         };
-
+        
         // Set the remote description
         await pc.connection.setRemoteDescription(new RTCSessionDescription(offer));
         
@@ -224,6 +224,40 @@ const Room: React.FC = () => {
       iceCandidatePoolSize: 10
     });
 
+    // Set up the ontrack handler for receiving audio
+    pc.ontrack = (event) => {
+      console.log('Received track from peer:', event.streams[0]);
+      const [stream] = event.streams;
+      
+      // Create or get existing audio element for this user
+      let audioElement = audioElementsRef.current.get(userId);
+      if (!audioElement) {
+        audioElement = new Audio();
+        audioElement.autoplay = true;
+        (audioElement as any).playsInline = true;
+        audioElement.id = `audio-${userId}`;
+        audioElementsRef.current.set(userId, audioElement);
+        
+        // Add error handling for audio playback
+        audioElement.onerror = (e) => {
+          console.error('Audio playback error:', e);
+          setError('Error playing received audio. Please check your audio output settings.');
+        };
+      }
+
+      // Set the stream as the source and play
+      audioElement.srcObject = stream;
+      audioElement.play().catch(error => {
+        console.error('Error playing audio:', error);
+        setError('Failed to play received audio. Try clicking anywhere on the page.');
+      });
+
+      // Set up visualization for the received stream
+      if (stream.getAudioTracks().length > 0) {
+        setupAudioVisualization(stream);
+      }
+    };
+
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         console.log('Sending ICE candidate to:', userId);
@@ -261,6 +295,12 @@ const Room: React.FC = () => {
     // Check if someone else is already sharing
     if (sharingUser) {
       setError('Someone else is already sharing. Please wait for them to stop.');
+      return;
+    }
+
+    // Check if we're already sharing
+    if (isSharing) {
+      setError('You are already sharing audio.');
       return;
     }
 
@@ -320,6 +360,20 @@ const Room: React.FC = () => {
             console.log('Adding track to peer connection:', track.label);
             pc.connection.addTrack(track, stream);
           });
+
+          // Handle connection state changes
+          pc.connection.onconnectionstatechange = () => {
+            console.log(`Connection state with ${user.id}:`, pc.connection.connectionState);
+            if (pc.connection.connectionState === 'failed' || pc.connection.connectionState === 'disconnected') {
+              console.log('Attempting to reconnect to peer:', user.id);
+              // Try to reestablish the connection
+              const newPc = createPeerConnection(user.id);
+              stream.getAudioTracks().forEach(track => {
+                newPc.connection.addTrack(track, stream);
+              });
+              peersRef.current.set(user.id, newPc);
+            }
+          };
         }
       });
 
@@ -371,6 +425,9 @@ const Room: React.FC = () => {
         console.log('Audio track ended');
         stopSharing();
       };
+
+      // Handle browser tab/window close
+      window.addEventListener('beforeunload', stopSharing);
     } catch (error) {
       console.error('Error starting audio share:', error);
       if (error instanceof Error) {
@@ -387,6 +444,10 @@ const Room: React.FC = () => {
   };
 
   const stopSharing = () => {
+    // Remove beforeunload listener
+    window.removeEventListener('beforeunload', stopSharing);
+
+    // Stop all tracks
     localStreamRef.current?.getTracks().forEach(track => track.stop());
     
     // Close all peer connections
@@ -478,20 +539,34 @@ const Room: React.FC = () => {
     }
   };
 
-  // Add autoplay unblock handler
+  // Add autoplay unblock handler with more aggressive approach
   useEffect(() => {
     const unblockAutoplay = () => {
       audioElementsRef.current.forEach(audio => {
-        audio.play().catch(console.error);
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.error('Error playing audio:', error);
+            // Try to play again after a short delay
+            setTimeout(() => {
+              audio.play().catch(console.error);
+            }, 1000);
+          });
+        }
       });
     };
 
+    // Add multiple event listeners to increase chances of unblocking
     document.addEventListener('click', unblockAutoplay);
     document.addEventListener('touchstart', unblockAutoplay);
+    document.addEventListener('keydown', unblockAutoplay);
+    window.addEventListener('focus', unblockAutoplay);
 
     return () => {
       document.removeEventListener('click', unblockAutoplay);
       document.removeEventListener('touchstart', unblockAutoplay);
+      document.removeEventListener('keydown', unblockAutoplay);
+      window.removeEventListener('focus', unblockAutoplay);
     };
   }, []);
 
