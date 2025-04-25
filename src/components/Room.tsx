@@ -234,39 +234,6 @@ const Room: React.FC = () => {
       }
     };
 
-    pc.ontrack = (event) => {
-      console.log('Received track from peer:', event.streams[0]);
-      const [stream] = event.streams;
-      
-      // Create or get existing audio element for this user
-      let audioElement = audioElementsRef.current.get(userId);
-      if (!audioElement) {
-        audioElement = new Audio();
-        audioElement.autoplay = true;
-        (audioElement as any).playsInline = true;
-        audioElement.id = `audio-${userId}`;
-        audioElementsRef.current.set(userId, audioElement);
-        
-        // Add error handling for audio playback
-        audioElement.onerror = (e) => {
-          console.error('Audio playback error:', e);
-          setError('Error playing received audio. Please check your audio output settings.');
-        };
-      }
-
-      // Set the stream as the source and play
-      audioElement.srcObject = stream;
-      audioElement.play().catch(error => {
-        console.error('Error playing audio:', error);
-        setError('Failed to play received audio. Try clicking anywhere on the page.');
-      });
-
-      // Set up visualization for the received stream
-      if (stream.getAudioTracks().length > 0) {
-        setupAudioVisualization(stream);
-      }
-    };
-
     pc.oniceconnectionstatechange = () => {
       console.log(`ICE connection state with ${userId}:`, pc.iceConnectionState);
       if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
@@ -342,36 +309,36 @@ const Room: React.FC = () => {
 
       console.log('Creating peer connections for users:', users);
       
-      // Create peer connections for all users first
-      const peerConnections = new Map<string, RTCPeerConnection>();
+      // Create peer connections and add tracks
       users.forEach(user => {
         if (user.id !== socketRef.current?.id) {
-          console.log('Creating peer connection for user:', user.id);
+          console.log('Setting up connection for user:', user.id);
           const pc = createPeerConnection(user.id);
-          peerConnections.set(user.id, pc.connection);
+          
+          // Add tracks to the peer connection
+          stream.getAudioTracks().forEach(track => {
+            console.log('Adding track to peer connection:', track.label);
+            pc.connection.addTrack(track, stream);
+          });
         }
-      });
-
-      // Add tracks to all peer connections
-      peerConnections.forEach((pc, userId) => {
-        console.log('Adding tracks to peer connection for user:', userId);
-        stream.getAudioTracks().forEach(track => {
-          console.log('Adding track:', track.label);
-          pc.addTrack(track, stream);
-        });
       });
 
       // Create and send offers to all peers
       const offers = await Promise.all(
-        Array.from(peerConnections.entries()).map(async ([userId, pc]) => {
-          console.log('Creating offer for user:', userId);
-          const offer = await pc.createOffer({
-            offerToReceiveAudio: false,
-            offerToReceiveVideo: false
-          });
-          await pc.setLocalDescription(offer);
-          return { offer, to: userId };
-        })
+        users
+          .filter(user => user.id !== socketRef.current?.id)
+          .map(async user => {
+            const pc = peersRef.current.get(user.id);
+            if (pc) {
+              console.log('Creating offer for user:', user.id);
+              const offer = await pc.connection.createOffer({
+                offerToReceiveAudio: false,
+                offerToReceiveVideo: false
+              });
+              await pc.connection.setLocalDescription(offer);
+              return { offer, to: user.id };
+            }
+          })
       );
 
       // Send all offers
