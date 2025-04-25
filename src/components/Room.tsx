@@ -419,51 +419,7 @@ const Room: React.FC = () => {
     };
 
     // Set up the ontrack handler for receiving audio
-    pc.ontrack = (event) => {
-      console.log('Received track from peer:', event.streams[0]);
-      const [stream] = event.streams;
-      
-      // Create or get existing audio element for this user
-      let audioElement = audioElementsRef.current.get(userId);
-      if (!audioElement) {
-        audioElement = new Audio();
-        audioElement.autoplay = true;
-        (audioElement as any).playsInline = true;
-        audioElement.id = `audio-${userId}`;
-        audioElementsRef.current.set(userId, audioElement);
-        
-        // Add error handling for audio playback
-        audioElement.onerror = (e) => {
-          console.error('Audio playback error:', e);
-          setError('Error playing received audio. Please check your audio output settings.');
-        };
-
-        // Add volume control
-        audioElement.volume = 1.0;
-      }
-
-      // Set the stream as the source and play
-      audioElement.srcObject = stream;
-      const playPromise = audioElement.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          console.error('Error playing audio:', error);
-          setError('Failed to play received audio. Try clicking anywhere on the page.');
-          // Try to play again after a short delay
-          const currentAudioElement = audioElement;
-          if (currentAudioElement) {
-            setTimeout(() => {
-              currentAudioElement.play().catch(console.error);
-            }, 1000);
-          }
-        });
-      }
-
-      // Set up visualization for the received stream
-      if (stream.getAudioTracks().length > 0) {
-        setupAudioVisualization(stream);
-      }
-    };
+    pc.ontrack = (event) => handleTrack(event, userId);
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -779,32 +735,92 @@ const Room: React.FC = () => {
   useEffect(() => {
     const unblockAutoplay = () => {
       audioElementsRef.current.forEach(audio => {
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.error('Error playing audio:', error);
-            // Try to play again after a short delay
-            setTimeout(() => {
-              audio.play().catch(console.error);
-            }, 1000);
-          });
+        if (audio.paused) {
+          console.log('Attempting to unblock autoplay for audio element');
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+              console.error('Error playing audio:', error);
+              // Show user feedback about needing interaction
+              if (error.name === 'NotAllowedError') {
+                setError('Please click anywhere on the page to start audio playback');
+              }
+              // Try to play again after a short delay
+              setTimeout(() => {
+                audio.play().catch(console.error);
+              }, 1000);
+            });
+          }
         }
       });
     };
 
     // Add multiple event listeners to increase chances of unblocking
-    document.addEventListener('click', unblockAutoplay);
-    document.addEventListener('touchstart', unblockAutoplay);
-    document.addEventListener('keydown', unblockAutoplay);
-    window.addEventListener('focus', unblockAutoplay);
+    const events = ['click', 'touchstart', 'keydown', 'focus', 'mousedown', 'mouseup'];
+    events.forEach(event => {
+      document.addEventListener(event, unblockAutoplay);
+    });
+
+    // Also try to unblock on component mount
+    unblockAutoplay();
 
     return () => {
-      document.removeEventListener('click', unblockAutoplay);
-      document.removeEventListener('touchstart', unblockAutoplay);
-      document.removeEventListener('keydown', unblockAutoplay);
-      window.removeEventListener('focus', unblockAutoplay);
+      events.forEach(event => {
+        document.removeEventListener(event, unblockAutoplay);
+      });
     };
   }, []);
+
+  // Modify the ontrack handler to better handle autoplay
+  const handleTrack = (event: RTCTrackEvent, userId: string) => {
+    console.log('Received track from peer:', event.streams[0]);
+    const [stream] = event.streams;
+    
+    // Create or get existing audio element for this user
+    let audioElement = audioElementsRef.current.get(userId);
+    if (!audioElement) {
+      audioElement = new Audio();
+      audioElement.autoplay = true;
+      (audioElement as any).playsInline = true;
+      audioElement.id = `audio-${userId}`;
+      audioElementsRef.current.set(userId, audioElement);
+      
+      // Add error handling for audio playback
+      audioElement.onerror = (e) => {
+        console.error('Audio playback error:', e);
+        setError('Error playing received audio. Please check your audio output settings.');
+      };
+
+      // Add volume control
+      audioElement.volume = 1.0;
+    }
+
+    // Set the stream as the source and play
+    audioElement.srcObject = stream;
+    const playPromise = audioElement.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(error => {
+        console.error('Error playing audio:', error);
+        if (error.name === 'NotAllowedError') {
+          setError('Please click anywhere on the page to start audio playback');
+        } else {
+          setError('Failed to play received audio. Try clicking anywhere on the page.');
+        }
+        // Try to play again after a short delay
+        const currentAudioElement = audioElement;
+        if (currentAudioElement) {
+          setTimeout(() => {
+            currentAudioElement.play().catch(console.error);
+          }, 1000);
+        }
+      });
+    }
+
+    // Set up visualization for the received stream
+    if (stream.getAudioTracks().length > 0) {
+      setupAudioVisualization(stream);
+    }
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -865,30 +881,32 @@ const Room: React.FC = () => {
       }
     }
     
-    // Second pass: process and modify lines
+    // Second pass: process and modify lines while preserving order
+    let currentMediaSection: string | null = null;
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      
+      // Track current media section
+      if (line.startsWith('m=')) {
+        currentMediaSection = line;
+        modifiedLines.push(line);
+        continue;
+      }
       
       // Skip the original bundle group, we'll add it in the correct position
       if (line.startsWith('a=group:BUNDLE')) {
         continue;
       }
       
-      // If this is an audio section, ensure it has the correct MID
-      if (line.startsWith('m=audio')) {
-        modifiedLines.push(line);
-        continue;
-      }
-      
       // Add MID after the c= line in audio section
-      if (line.startsWith('c=IN IP4') && hasAudio) {
+      if (line.startsWith('c=IN IP4') && currentMediaSection?.startsWith('m=audio')) {
         modifiedLines.push(line);
         modifiedLines.push(`a=mid:${audioMid}`);
         continue;
       }
       
       // Skip any existing MID lines for audio sections
-      if (line.startsWith('a=mid:') && hasAudio) {
+      if (line.startsWith('a=mid:') && currentMediaSection?.startsWith('m=audio')) {
         continue;
       }
       
