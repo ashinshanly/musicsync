@@ -840,6 +840,8 @@ const Room: React.FC = () => {
   const modifySDP = (sdp: string | undefined) => {
     if (!sdp) return '';
     
+    console.log('Original SDP:', sdp);
+    
     // Split SDP into lines
     const lines = sdp.split('\r\n');
     let modifiedLines: string[] = [];
@@ -854,15 +856,18 @@ const Room: React.FC = () => {
       
       if (line.startsWith('a=group:BUNDLE')) {
         bundleGroup = line;
+        console.log('Found BUNDLE group:', bundleGroup);
       }
       
       if (line.startsWith('m=audio')) {
         hasAudio = true;
         audioSectionIndex = i;
+        console.log('Found audio section at index:', i);
         // Find the MID for this audio section
         for (let j = i + 1; j < lines.length; j++) {
           if (lines[j].startsWith('a=mid:')) {
             audioMid = lines[j].split('a=mid:')[1];
+            console.log('Found audio MID:', audioMid);
             break;
           }
         }
@@ -875,19 +880,23 @@ const Room: React.FC = () => {
       
       // Skip the original bundle group, we'll add our own
       if (line.startsWith('a=group:BUNDLE')) {
+        console.log('Skipping original BUNDLE group');
         continue;
       }
       
       // If this is an audio section, ensure it has the correct MID
       if (line.startsWith('m=audio')) {
+        console.log('Processing audio section');
         modifiedLines.push(line);
         // Add MID immediately after the m= line
         modifiedLines.push(`a=mid:${audioMid}`);
+        console.log('Added MID for audio section:', audioMid);
         continue;
       }
       
       // Skip any existing MID lines for audio sections
       if (line.startsWith('a=mid:') && hasAudio) {
+        console.log('Skipping existing MID line for audio');
         continue;
       }
       
@@ -896,6 +905,7 @@ const Room: React.FC = () => {
     
     // If no audio section was found, add one
     if (!hasAudio) {
+        console.log('No audio section found, adding default audio section');
         modifiedLines.push('m=audio 9 UDP/TLS/RTP/SAVPF 111');
         modifiedLines.push(`a=mid:${audioMid}`);
         modifiedLines.push('a=rtpmap:111 opus/48000/2');
@@ -906,10 +916,12 @@ const Room: React.FC = () => {
     
     // Add the bundle group with the correct MID
     modifiedLines.push(`a=group:BUNDLE ${audioMid}`);
+    console.log('Added BUNDLE group with MID:', audioMid);
     
     // Ensure we have all necessary audio attributes
     const hasOpus = modifiedLines.some(line => line.includes('opus/48000'));
     if (!hasOpus) {
+        console.log('Adding Opus codec configuration');
         modifiedLines.push('a=rtpmap:111 opus/48000/2');
         modifiedLines.push('a=rtcp-fb:111 transport-cc');
         modifiedLines.push('a=fmtp:111 minptime=10;useinbandfec=1');
@@ -917,13 +929,39 @@ const Room: React.FC = () => {
     
     // Add direction attribute
     if (!modifiedLines.some(line => line.startsWith('a=sendrecv'))) {
+        console.log('Adding sendrecv direction');
         modifiedLines.push('a=sendrecv');
     }
     
-    // Log the modified SDP for debugging
-    console.log('Modified SDP:', modifiedLines.join('\r\n'));
+    // Add required SDP attributes
+    if (!modifiedLines.some(line => line.startsWith('a=ice-options:trickle'))) {
+        console.log('Adding ICE options');
+        modifiedLines.push('a=ice-options:trickle');
+    }
     
-    return modifiedLines.join('\r\n');
+    // Validate the modified SDP
+    const modifiedSDP = modifiedLines.join('\r\n');
+    console.log('Modified SDP:', modifiedSDP);
+    
+    // Verify SDP structure
+    const hasValidAudioSection = modifiedSDP.includes('m=audio');
+    const hasValidBundleGroup = modifiedSDP.includes(`a=group:BUNDLE ${audioMid}`);
+    const hasValidMid = modifiedSDP.includes(`a=mid:${audioMid}`);
+    const hasValidOpus = modifiedSDP.includes('opus/48000');
+    
+    console.log('SDP Validation:', {
+      hasValidAudioSection,
+      hasValidBundleGroup,
+      hasValidMid,
+      hasValidOpus
+    });
+    
+    if (!hasValidAudioSection || !hasValidBundleGroup || !hasValidMid || !hasValidOpus) {
+      console.error('Invalid SDP structure detected');
+      throw new Error('Failed to create valid SDP');
+    }
+    
+    return modifiedSDP;
   };
 
   // Add cleanup on component unmount
