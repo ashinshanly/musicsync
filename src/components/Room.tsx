@@ -110,7 +110,14 @@ const Room: React.FC = () => {
         console.log('Received offer from:', from);
         console.log('Original offer SDP:', offer.sdp);
         
-        const pc = createPeerConnection(from);
+        // Create peer connection if it doesn't exist
+        let pc = peersRef.current.get(from);
+        if (!pc) {
+          console.log('Creating new peer connection for:', from);
+          pc = createPeerConnection(from);
+        } else {
+          console.log('Using existing peer connection for:', from);
+        }
         
         // Initialize ICE candidate queue for this peer
         const iceCandidateQueues = new Map<string, RTCIceCandidate[]>();
@@ -167,6 +174,14 @@ const Room: React.FC = () => {
             sdp: modifySDP(offer.sdp)
           });
           console.log('Modified offer SDP:', modifiedOffer.sdp);
+          
+          // Check if we're in a valid state to set remote description
+          if (pc.connection.signalingState !== 'stable') {
+            console.log('Current signaling state:', pc.connection.signalingState);
+            console.log('Rolling back to stable state...');
+            await pc.connection.setLocalDescription({ type: 'rollback' });
+          }
+          
           await pc.connection.setRemoteDescription(modifiedOffer);
           console.log('Remote description set successfully');
           
@@ -185,7 +200,24 @@ const Room: React.FC = () => {
           }
         } catch (err) {
           console.error('Error setting remote description:', err);
-          throw new Error('Failed to process offer from sharing user');
+          // Try to recover by creating a new peer connection
+          console.log('Attempting to recover by creating new peer connection...');
+          pc.connection.close();
+          pc = createPeerConnection(from);
+          peersRef.current.set(from, pc);
+          
+          // Try setting remote description again
+          try {
+            const modifiedOffer = new RTCSessionDescription({
+              type: 'offer',
+              sdp: modifySDP(offer.sdp)
+            });
+            await pc.connection.setRemoteDescription(modifiedOffer);
+            console.log('Successfully recovered and set remote description');
+          } catch (recoveryErr) {
+            console.error('Recovery failed:', recoveryErr);
+            throw new Error('Failed to process offer from sharing user');
+          }
         }
         
         // Create and send answer
