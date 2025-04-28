@@ -15,6 +15,22 @@ interface PeerConnection {
   stream?: MediaStream;
 }
 
+// Stub for SDP modification
+function modifySDP(sdp: string): string {
+  // Currently a no-op stub
+  return sdp;
+}
+
+// Stub for audio visualization setup
+function setupAudioVisualization(stream: MediaStream): void {
+  // TODO: implement audio visualization
+}
+
+// Stub for stopping audio visualization
+function stopVisualization(): void {
+  // TODO: implement visualization cleanup
+}
+
 const SOCKET_URL = process.env.NODE_ENV === 'production' 
   ? 'https://musicsync-server.onrender.com' // Replace with your Render.com URL once deployed
   : 'http://localhost:3001';
@@ -225,6 +241,13 @@ const Room: React.FC = () => {
         
         // Create and send answer
         try {
+          // Add local audio tracks for sharer to send audio
+          if (localStreamRef.current) {
+            localStreamRef.current.getAudioTracks().forEach(track => {
+              console.log('Adding local track for sharer to peer:', from);
+              pc.connection.addTrack(track, localStreamRef.current as MediaStream);
+            });
+          }
           console.log('Creating answer...');
           const answer = await pc.connection.createAnswer({
             offerToReceiveAudio: true,
