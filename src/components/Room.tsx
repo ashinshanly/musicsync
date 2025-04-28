@@ -245,7 +245,7 @@ const Room: React.FC = () => {
           if (localStreamRef.current) {
             localStreamRef.current.getAudioTracks().forEach(track => {
               console.log('Adding local track for sharer to peer:', from);
-              pc.connection.addTrack(track, localStreamRef.current as MediaStream);
+              pc!.connection.addTrack(track, localStreamRef.current as MediaStream);
             });
           }
           console.log('Creating answer...');
