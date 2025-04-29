@@ -234,9 +234,21 @@ const Room: React.FC = () => {
           await pc.connection.setRemoteDescription(modifiedOffer);
           console.log('Remote description set successfully');
           
+          // If we're the sharer, make sure we add our tracks after setting remote desc
+          if (localStreamRef.current && isSharing && pc) {
+            console.log('Adding local tracks as sharer to new connection with:', from);
+            localStreamRef.current.getAudioTracks().forEach(track => {
+              try {
+                pc.connection.addTrack(track, localStreamRef.current as MediaStream);
+              } catch (e) {
+                console.warn('Error adding track after setRemoteDescription:', e);
+              }
+            });
+          }
+          
           // Process any queued ICE candidates
           const queue = iceCandidateQueuesRef.current.get(from);
-          if (queue && queue.length > 0) {
+          if (queue && queue.length > 0 && pc) {
             console.log('Processing queued ICE candidates:', queue.length);
             for (const candidate of queue) {
               try {
@@ -272,10 +284,7 @@ const Room: React.FC = () => {
         // Create and send answer
         try {
           console.log('Creating answer...');
-          const answer = await pc.connection.createAnswer({
-            offerToReceiveAudio: true,
-            offerToReceiveVideo: false
-          });
+          const answer = await pc.connection.createAnswer();
           await pc.connection.setLocalDescription(answer);
           console.log('Answer created successfully');
           
@@ -440,9 +449,14 @@ const Room: React.FC = () => {
 
     // Stable audio m-line: add transceiver before negotiating
     if (localStreamRef.current) {
+      // For sharing user: add tracks directly so they're actually sent
       localStreamRef.current.getAudioTracks().forEach(track => {
-        try { pc.addTransceiver(track, { direction: 'sendonly' }); }
-        catch (e) { console.warn('addTransceiver sendonly failed:', e); }
+        try { 
+          console.log(`Adding track to connection for ${userId}:`, track.label);
+          pc.addTrack(track, localStreamRef.current as MediaStream);
+        } catch (e) { 
+          console.warn('Adding track failed:', e); 
+        }
       });
     } else {
       try { pc.addTransceiver('audio', { direction: 'recvonly' }); }
