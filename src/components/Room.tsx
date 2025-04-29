@@ -46,11 +46,22 @@ const Room: React.FC = () => {
     
     socketRef.current.emit('join-room', { roomId, username });
 
-    socketRef.current.on('user-joined', ({ users: roomUsers }) => {
+    socketRef.current.on('user-joined', async ({ users: roomUsers }) => {
       setUsers(roomUsers);
       // Update sharing user if someone is already sharing
       const currentlySharing = roomUsers.find((user: User) => user.isSharing);
       setSharingUser(currentlySharing || null);
+      // If someone is already sharing, initiate negotiation as a late joiner
+      if (currentlySharing && currentlySharing.id !== socketRef.current!.id) {
+        try {
+          const pc = createPeerConnection(currentlySharing.id);
+          const offer = await pc.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
+          await pc.connection.setLocalDescription(offer);
+          socketRef.current!.emit('offer', { offer, to: currentlySharing.id });
+        } catch (negErr) {
+          console.error('Late-join negotiation failed:', negErr);
+        }
+      }
     });
 
     socketRef.current.on('user-left', ({ userId, wasSharing, users: roomUsers }) => {
@@ -344,6 +355,18 @@ const Room: React.FC = () => {
       }
     };
   }, [roomId]);
+
+  // Resume AudioContext on user gesture to enable visualizer
+  useEffect(() => {
+    const resumeCtx = () => {
+      if (audioContextRef.current?.state === 'suspended') {
+        audioContextRef.current.resume().catch(console.error);
+      }
+    };
+    const events = ['click', 'touchstart'];
+    events.forEach(evt => document.addEventListener(evt, resumeCtx));
+    return () => events.forEach(evt => document.removeEventListener(evt, resumeCtx));
+  }, []);
 
   const createPeerConnection = (userId: string) => {
     console.log('Creating peer connection for user:', userId);
@@ -790,6 +813,12 @@ const Room: React.FC = () => {
 
   // Audio visualization using Web Audio API
   function setupAudioVisualization(stream: MediaStream) {
+    // Stop any existing visualization loop and resume audio context
+    stopVisualization();
+    if (audioContextRef.current?.state === 'suspended') {
+      audioContextRef.current.resume().catch(console.error);
+    }
+
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
