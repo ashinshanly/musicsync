@@ -5,6 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
 import Logo from './Logo';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface User {
   id: string;
@@ -36,10 +37,8 @@ const Room: React.FC = () => {
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [isSharing, setIsSharing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [shareType, setShareType] = useState<'microphone' | 'system'>('system');
   const [sharingUser, setSharingUser] = useState<User | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
   
   const socketRef = useRef<Socket>();
   const localStreamRef = useRef<MediaStream>();
@@ -117,7 +116,7 @@ const Room: React.FC = () => {
           socketRef.current?.emit('offer', { offer, to: userId });
         } catch (error) {
           console.error('Error setting up connection with sharing user:', error);
-          setError('Failed to connect to sharing user. Please try joining the room again.');
+          toast.error('Failed to connect to sharing user. Please try joining the room again.');
         }
       }
     });
@@ -170,7 +169,7 @@ const Room: React.FC = () => {
             // Add error handling for audio playback
             audioElement.onerror = (e) => {
               console.error('Audio playback error:', e);
-              setError('Error playing received audio. Please check your audio output settings.');
+              toast.error('Error playing received audio. Please check your audio output settings.');
             };
           }
 
@@ -180,7 +179,11 @@ const Room: React.FC = () => {
           if (playPromise !== undefined) {
             playPromise.catch(error => {
               console.error('Error playing audio:', error);
-              setError('Try clicking anywhere on the page.');
+              if (error.name === 'NotAllowedError') {
+                toast.error('Please click anywhere on the page to start audio playback');
+              } else {
+                toast.error('Try clicking anywhere on the page.');
+              }
               // Try to play again after a short delay
               const currentAudioElement = audioElement;
               if (currentAudioElement) {
@@ -284,7 +287,7 @@ const Room: React.FC = () => {
         }
       } catch (err) {
         console.error('Error handling offer:', err);
-        //setError(err instanceof Error ? err.message : 'Failed to establish connection with sharing user. Please try again.');
+        //toast.error(err instanceof Error ? err.message : 'Failed to establish connection with sharing user. Please try again.');
       }
     });
 
@@ -316,7 +319,7 @@ const Room: React.FC = () => {
         }
       } catch (err) {
         console.error('Error handling answer:', err);
-        //setError(err instanceof Error ? err.message : 'Failed to process answer from peer');
+        //toast.error(err instanceof Error ? err.message : 'Failed to process answer from peer');
       }
     });
 
@@ -435,10 +438,10 @@ const Room: React.FC = () => {
       console.log(`Connection state with ${userId}:`, pc.connectionState);
       if (pc.connectionState === 'connected') {
         console.log('Successfully connected to peer:', userId);
-        setError(null); // Clear any previous errors
+        //setError(null); // Clear any previous errors
       } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
         console.log('Connection failed or disconnected, attempting to recover');
-        setError('Attempting to reconnect...');
+        toast.error('Attempting to reconnect...');
         // Try to recover by creating a new connection
         setTimeout(() => {
           if (peersRef.current.has(userId)) {
@@ -461,7 +464,7 @@ const Room: React.FC = () => {
         socketRef.current?.emit('offer', { offer, to: userId });
       } catch (err) {
         console.error('Error during negotiation:', err);
-        setError('Failed to negotiate connection. Please try again.');
+        toast.error('Failed to negotiate connection. Please try again.');
       }
     };
 
@@ -492,7 +495,7 @@ const Room: React.FC = () => {
         if (peer.connection.connectionState === 'failed' || 
             peer.connection.connectionState === 'disconnected') {
           console.log('Detected failed connection for:', userId);
-          setError('Attempting to reconnect...');
+          toast.error('Attempting to reconnect...');
           const newPc = createPeerConnection(userId);
           peersRef.current.set(userId, newPc);
         }
@@ -506,13 +509,13 @@ const Room: React.FC = () => {
   const startSharing = async () => {
     // Check if someone else is already sharing
     if (sharingUser) {
-      setError('Someone else is already sharing. Please wait for them to stop.');
+      toast.error('Someone else is already sharing. Please wait for them to stop.');
       return;
     }
 
     // Check if we're already sharing
     if (isSharing) {
-      setError('You are already sharing audio.');
+      toast.error('You are already sharing audio.');
       return;
     }
 
@@ -654,7 +657,7 @@ const Room: React.FC = () => {
               socketRef.current?.emit('offer', { offer: modifiedOffer, to: user.id });
             } catch (err) {
               console.error('Error creating/sending offer:', err);
-              //setError('Failed to establish connection. Please try again.');
+              //toast.error('Failed to establish connection. Please try again.');
             }
           };
 
@@ -710,9 +713,9 @@ const Room: React.FC = () => {
     } catch (error) {
       console.error('Error starting audio share:', error);
       if (error instanceof Error) {
-        setError(error.message);
+        toast.error(error.message);
       } else {
-        setError(
+        toast.error(
           shareType === 'microphone'
             ? 'Failed to access microphone. Please check your browser permissions and ensure you have a working microphone.'
             : 'Failed to capture system audio. Please make sure to select a window/tab and enable the "Share audio" option in the dialog.'
@@ -763,7 +766,7 @@ const Room: React.FC = () => {
       // Add error handling for audio playback
       audioElement.onerror = (e) => {
         console.error('Audio playback error:', e);
-        setError('Error playing received audio. Please check your audio output settings.');
+        toast.error('Error playing received audio. Please check your audio output settings.');
       };
 
       // Add volume control
@@ -777,9 +780,9 @@ const Room: React.FC = () => {
       playPromise.catch(error => {
         console.error('Error playing audio:', error);
         if (error.name === 'NotAllowedError') {
-          setError('Please click anywhere on the page to start audio playback');
+          toast.error('Please click anywhere on the page to start audio playback');
         } else {
-          setError('Failed to play received audio. Try clicking anywhere on the page.');
+          toast.error('Failed to play received audio. Try clicking anywhere on the page.');
         }
         // Try to play again after a short delay
         const currentAudioElement = audioElement;
@@ -902,9 +905,8 @@ const Room: React.FC = () => {
   const copyLink = () => {
     const link = window.location.href;
     navigator.clipboard.writeText(link)
-      .then(() => setToast('Invite link copied!'))
-      .catch(() => setToast('Failed to copy link'));
-    setTimeout(() => setToast(null), 3000);
+      .then(() => toast.success('Invite link copied!'))
+      .catch(() => toast.error('Failed to copy link'));
   };
 
   return (
@@ -915,11 +917,7 @@ const Room: React.FC = () => {
       animate="visible"
       exit="exit"
     >
-      {toast && (
-        <div className="fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-md">
-          {toast}
-        </div>
-      )}
+      <Toaster position="top-right" />
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-4">
@@ -1004,15 +1002,7 @@ const Room: React.FC = () => {
                 </motion.button>
               )}
 
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="w-full p-4 bg-red-500/20 border border-red-500 rounded-lg text-red-100"
-                >
-                  {error}
-                </motion.div>
-              )}
+              {/* Inline error UI removed; notifications shown via toast */}
 
               <canvas
                 id="visualizer"
