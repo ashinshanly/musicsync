@@ -895,7 +895,9 @@ const Room: React.FC = () => {
           if (error.name === 'NotAllowedError') {
             console.log('Autoplay prevented by browser policy');
             // Create a UI element to enable audio
-            createAudioEnableButton(userId, audioElement);
+            if (audioElement) { // Ensure audioElement exists before passing to the function
+              createAudioEnableButton(userId, audioElement);
+            }
           } else {
             toast.error(`Failed to play received audio: ${error.message}. Try clicking anywhere on the page.`);
             // Try to play again after a short delay with user interaction prompt
@@ -1105,7 +1107,7 @@ const Room: React.FC = () => {
 
   // Copy room link and show toast
   // Function to create a UI button to enable audio for a specific stream
-  const createAudioEnableButton = (userId: string, audioElement: HTMLAudioElement) => {
+  const createAudioEnableButton = (userId: string, audioElement: HTMLAudioElement): void => {
     // Remove any existing button
     const existingButton = document.getElementById(`enable-audio-${userId}`);
     if (existingButton) existingButton.remove();
