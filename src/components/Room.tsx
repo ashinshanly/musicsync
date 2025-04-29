@@ -1118,24 +1118,45 @@ const Room: React.FC = () => {
     const existingButton = document.getElementById(`enable-audio-${userId}`);
     if (existingButton) existingButton.remove();
     
-    // Create new button
+    // Create new button with a more subtle and aesthetic design
     const button = document.createElement('button');
     button.id = `enable-audio-${userId}`;
-    button.textContent = 'Click to Enable Audio';
+    
+    // Create an icon and text wrapper for better aesthetics
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.alignItems = 'center';
+    wrapper.style.gap = '8px';
+    
+    // Add audio icon using emoji (can be replaced with SVG for production)
+    const icon = document.createElement('span');
+    icon.textContent = '🔊';
+    icon.style.fontSize = '16px';
+    
+    // Add text
+    const text = document.createElement('span');
+    text.textContent = 'Enable Audio';
+    
+    wrapper.appendChild(icon);
+    wrapper.appendChild(text);
+    button.appendChild(wrapper);
+    
+    // Position in the bottom right corner instead of center screen
     button.style.position = 'fixed';
-    button.style.top = '50%';
-    button.style.left = '50%';
-    button.style.transform = 'translate(-50%, -50%)';
-    button.style.padding = '15px 30px';
-    button.style.backgroundColor = '#8B5CF6';
+    button.style.bottom = '20px';
+    button.style.right = '20px';
+    button.style.padding = '10px 15px';
+    button.style.backgroundColor = 'rgba(139, 92, 246, 0.85)';
+    button.style.backdropFilter = 'blur(8px)';
     button.style.color = 'white';
     button.style.border = 'none';
     button.style.borderRadius = '8px';
-    button.style.fontWeight = 'bold';
-    button.style.fontSize = '18px';
+    button.style.fontWeight = '500';
+    button.style.fontSize = '14px';
     button.style.zIndex = '10000';
     button.style.cursor = 'pointer';
-    button.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.25)';
+    button.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.2)';
+    button.style.transition = 'all 0.2s ease';
     
     // Add hover effect
     button.onmouseover = () => {
@@ -1161,20 +1182,20 @@ const Room: React.FC = () => {
     
     document.body.appendChild(button);
     
-    // Add a pulsing animation to draw attention
+    // Add a subtle pulse animation (without transform since it's not centered)
     const keyframes = [
-      { transform: 'translate(-50%, -50%) scale(1)', boxShadow: '0 4px 20px rgba(139, 92, 246, 0.3)' },
-      { transform: 'translate(-50%, -50%) scale(1.05)', boxShadow: '0 4px 25px rgba(139, 92, 246, 0.7)' },
-      { transform: 'translate(-50%, -50%) scale(1)', boxShadow: '0 4px 20px rgba(139, 92, 246, 0.3)' }
+      { boxShadow: '0 2px 10px rgba(139, 92, 246, 0.3)', backgroundColor: 'rgba(139, 92, 246, 0.85)' },
+      { boxShadow: '0 2px 15px rgba(139, 92, 246, 0.7)', backgroundColor: 'rgba(139, 92, 246, 0.95)' },
+      { boxShadow: '0 2px 10px rgba(139, 92, 246, 0.3)', backgroundColor: 'rgba(139, 92, 246, 0.85)' }
     ];
     
     button.animate(keyframes, {
-      duration: 1500,
+      duration: 2000,
       iterations: Infinity
     });
     
     // Show toast with instructions
-    toast.success('Click the button to enable audio', { duration: 5000 });
+    toast.success('Click the audio button in the bottom right to enable sound', { duration: 5000 });
   };
 
   const copyLink = () => {
