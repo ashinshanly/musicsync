@@ -18,7 +18,7 @@ interface PeerConnection {
 }
 
 const SOCKET_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://musicsync-server.onrender.com' // Replace with your Render.com URL once deployed
+  ? 'https://musicsync-server.onrender.com'
   : 'http://localhost:3001';
 
 const Room: React.FC = () => {
