@@ -86,7 +86,9 @@ io.on('connection', (socket) => {
     const user = {
       id: socket.id,
       name: username,
-      isSharing: false
+      isSharing: false,
+      upvotes: 0,
+      downvotes: 0
     };
     room.users.push(user);
     
@@ -105,6 +107,9 @@ io.on('connection', (socket) => {
       const user = room.users.find(u => u.id === socket.id);
       if (user) {
         user.isSharing = true;
+        // Reset votes when user starts sharing
+        user.upvotes = 0;
+        user.downvotes = 0;
         updateRoomStatus(room);
         const roomId = findRoomId(room);
         socket.to(roomId).emit('user-started-sharing', {
@@ -140,6 +145,34 @@ io.on('connection', (socket) => {
       const wasSharing = user?.isSharing || false;
       room.users = room.users.filter(u => u.id !== socket.id);
       
+      // Clean up votes when a user leaves
+      if (room.votes) {
+        // Remove this user's votes
+        delete room.votes[socket.id];
+        
+        // Update vote counts for all users since this user's votes are gone
+        room.users.forEach(u => {
+          if (u.isSharing) {
+            // Recount votes for sharing user
+            let upvotes = 0;
+            let downvotes = 0;
+            Object.entries(room.votes || {}).forEach(([voterId, voteType]) => {
+              if (voteType === 'up') upvotes++;
+              if (voteType === 'down') downvotes++;
+            });
+            u.upvotes = upvotes;
+            u.downvotes = downvotes;
+            
+            const roomId = findRoomId(room);
+            io.to(roomId).emit('vote-update', {
+              userId: u.id,
+              upvotes: u.upvotes,
+              downvotes: u.downvotes
+            });
+          }
+        });
+      }
+      
       if (room.users.length === 0) {
         const roomId = findRoomId(room);
         rooms.delete(roomId);
@@ -158,6 +191,63 @@ io.on('connection', (socket) => {
         });
       }
     }
+  });
+
+  // Handle voting
+  socket.on('vote', ({ roomId, targetUserId, voteType }) => {
+    console.log('Vote received:', { roomId, targetUserId, voteType, from: socket.id });
+    const room = rooms.get(roomId);
+    if (!room) return;
+    
+    // Find the target user in the room
+    const targetUser = room.users.find(user => user.id === targetUserId);
+    if (!targetUser) return;
+    
+    // Initialize vote counts if not present
+    targetUser.upvotes = targetUser.upvotes || 0;
+    targetUser.downvotes = targetUser.downvotes || 0;
+    
+    // Track who voted for what
+    room.votes = room.votes || {};
+    const previousVote = room.votes[socket.id];
+    
+    // Handle vote changes
+    if (previousVote === voteType) {
+      // Double-voting - toggle off the vote
+      if (voteType === 'up') {
+        targetUser.upvotes = Math.max(0, targetUser.upvotes - 1);
+      } else {
+        targetUser.downvotes = Math.max(0, targetUser.downvotes - 1);
+      }
+      // Remove the vote record
+      delete room.votes[socket.id];
+    } else {
+      // Remove previous vote if it exists
+      if (previousVote === 'up') {
+        targetUser.upvotes = Math.max(0, targetUser.upvotes - 1);
+      } else if (previousVote === 'down') {
+        targetUser.downvotes = Math.max(0, targetUser.downvotes - 1);
+      }
+      
+      // Add new vote
+      if (voteType === 'up') {
+        targetUser.upvotes += 1;
+      } else {
+        targetUser.downvotes += 1;
+      }
+      
+      // Save the vote
+      room.votes[socket.id] = voteType;
+    }
+    
+    console.log('New vote counts:', { upvotes: targetUser.upvotes, downvotes: targetUser.downvotes });
+    
+    // Broadcast the updated vote counts to all users in the room
+    io.to(roomId).emit('vote-update', {
+      userId: targetUserId,
+      upvotes: targetUser.upvotes,
+      downvotes: targetUser.downvotes
+    });
   });
 
   // Handle WebRTC signaling
