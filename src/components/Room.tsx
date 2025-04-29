@@ -37,7 +37,8 @@ const Room: React.FC = () => {
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [isSharing, setIsSharing] = useState(false);
-  const [shareType, setShareType] = useState<'microphone' | 'system'>('system');
+  const [shareType, setShareType] = useState<'microphone' | 'system'>('microphone');
+  const [isMobile, setIsMobile] = useState<boolean>(false);
   const [sharingUser, setSharingUser] = useState<User | null>(null);
   
   const socketRef = useRef<Socket>();
@@ -553,6 +554,11 @@ const Room: React.FC = () => {
         });
         console.log('Microphone access granted:', stream.getAudioTracks()[0].label);
       } else {
+        // Check if getDisplayMedia is supported
+        if (!navigator.mediaDevices.getDisplayMedia) {
+          throw new Error('System audio sharing is not supported on this device. Please use microphone sharing instead.');
+        }
+        
         console.log('Requesting system audio access...');
         stream = await navigator.mediaDevices.getDisplayMedia({
           audio: {
@@ -879,6 +885,23 @@ const Room: React.FC = () => {
     }
   }
 
+  // Check for mobile device on component mount
+  useEffect(() => {
+    // Basic check for mobile devices
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(userAgent);
+    };
+    
+    const mobile = checkMobile();
+    setIsMobile(mobile);
+    
+    if (mobile) {
+      // Force microphone mode on mobile as getDisplayMedia isn't supported
+      setShareType('microphone');
+    }
+  }, []);
+
   // Update the cleanup effect
   useEffect(() => {
     return () => {
@@ -965,13 +988,17 @@ const Room: React.FC = () => {
                   <div className="flex items-center space-x-4 mb-4">
                     <button
                       onClick={() => setShareType('system')}
+                      disabled={isMobile}
                       className={`px-4 py-2 rounded-lg transition-colors ${
                         shareType === 'system'
                           ? 'bg-purple-500 text-white'
-                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          : isMobile 
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-60'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                       }`}
                     >
                       System Audio
+                      {isMobile && <span className="block text-xs mt-1">Not available on mobile</span>}
                     </button>
                     <button
                       onClick={() => setShareType('microphone')}
