@@ -713,8 +713,9 @@ const Room: React.FC = () => {
       });
     }
 
-    // Set up visualization for the received stream if this is the sharing user
-    if (stream.getAudioTracks().length > 0 && userId === sharingUser?.id) {
+    // Set up visualization for any received audio track - show for everyone
+    if (stream.getAudioTracks().length > 0) {
+      // Always visualize any audio we receive
       setupAudioVisualization(stream);
     }
   };
@@ -748,7 +749,7 @@ const Room: React.FC = () => {
     return sdp.replace(/a=fmtp:111 (.*)/, 'a=fmtp:111 $1; stereo=1; sprop-stereo=1');
   };
 
-  // Audio visualization using Web Audio API
+  // Audio visualization using Web Audio API with improved aesthetics
   function setupAudioVisualization(stream: MediaStream) {
     // Stop any existing visualization loop and resume audio context
     stopVisualization();
@@ -760,26 +761,111 @@ const Room: React.FC = () => {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
     analyserRef.current = audioContextRef.current.createAnalyser();
-    analyserRef.current.fftSize = 2048;
+    analyserRef.current.fftSize = 2048; // Higher fidelity
+    analyserRef.current.smoothingTimeConstant = 0.85; // Smoother transitions
+    
     const source = audioContextRef.current.createMediaStreamSource(stream);
     source.connect(analyserRef.current);
     const canvas = document.getElementById('visualizer') as HTMLCanvasElement;
     const ctx = canvas.getContext('2d')!;
     const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    
+    // Track time for wave effects
+    let time = 0;
+    
     const draw = () => {
+      // Get frequency data
       analyserRef.current!.getByteFrequencyData(dataArray);
-      ctx.fillStyle = '#0A0A0F'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      const barWidth = (canvas.width / dataArray.length) * 2.5;
-      let x = 0;
-      dataArray.forEach((v, i) => {
-        const barHeight = v;
-        const hue = (i / dataArray.length) * 360;
-        ctx.fillStyle = `hsl(${hue},100%,50%)`;
-        ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-        x += barWidth + 1;
-      });
+      
+      // Calculate dimensions
+      const width = canvas.width;
+      const height = canvas.height;
+      
+      // Clear with gradient background
+      const gradient = ctx.createLinearGradient(0, 0, 0, height);
+      gradient.addColorStop(0, '#0a0322'); // Deep purple
+      gradient.addColorStop(1, '#1a1a2e'); // Dark blue
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+      
+      // Draw spectrum bars with glow
+      const barCount = 64; // Fewer bars for smoother look
+      const barWidth = (width / barCount) - 2;
+      const binSize = Math.floor(dataArray.length / barCount);
+      
+      // Add subtle grid
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i < height; i += 20) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(width, i);
+        ctx.stroke();
+      }
+      
+      // Draw frequency bars with glow
+      for (let i = 0; i < barCount; i++) {
+        // Get average value for this segment
+        let sum = 0;
+        for (let j = 0; j < binSize; j++) {
+          sum += dataArray[i * binSize + j];
+        }
+        const value = sum / binSize;
+        
+        // Calculate bar height with some exponential scaling
+        const barHeight = Math.pow(value / 255, 1.5) * height;
+        
+        // Position x coordinate
+        const x = i * (barWidth + 2);
+        
+        // Create gradient for this bar
+        const hue = 250 - (value / 255 * 150); // Purple to pink
+        const saturation = 80 + (value / 255 * 20);
+        const lightness = 50 + (value / 255 * 10);
+        
+        // Glow effect
+        ctx.shadowColor = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        ctx.shadowBlur = 15;
+        
+        // Main bar gradient
+        const barGradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
+        barGradient.addColorStop(0, `hsl(${hue}, ${saturation}%, ${lightness}%)`);
+        barGradient.addColorStop(1, `hsl(${hue + 30}, ${saturation}%, ${lightness + 20}%)`);
+        
+        ctx.fillStyle = barGradient;
+        ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+        
+        // Add reflection
+        ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, 0.3)`;
+        ctx.fillRect(x, height, barWidth, barHeight * 0.2);
+      }
+      
+      // Draw center line with ripple effect
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      // Add pulsing wave at bottom
+      ctx.beginPath();
+      for (let x = 0; x < width; x++) {
+        const y = height - 10 + Math.sin(x * 0.03 + time * 2) * 5;
+        if (x === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.strokeStyle = 'rgba(120, 100, 255, 0.5)';
+      ctx.stroke();
+      
+      // Update time for wave effect
+      time += 0.02;
+      
+      // Continue animation
       animationFrameRef.current = requestAnimationFrame(draw);
     };
+    
     draw();
   }
 
@@ -923,12 +1009,14 @@ const Room: React.FC = () => {
 
               {/* Inline error UI removed; notifications shown via toast */}
 
-              <canvas
-                id="visualizer"
-                className="w-full h-64 rounded-lg bg-gray-900"
-                width="800"
-                height="200"
-              />
+              <div className="w-full rounded-xl overflow-hidden shadow-[0_0_30px_rgba(138,58,185,0.3)] border border-purple-500/20 bg-gray-950">
+                <canvas
+                  id="visualizer"
+                  className="w-full h-64 rounded-lg bg-transparent"
+                  width="800"
+                  height="200"
+                />
+              </div>
             </div>
           </div>
 
