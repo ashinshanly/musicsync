@@ -1,6 +1,6 @@
 # MusicSync
 
-A real-time collaborative music listening web application that allows users to share their device audio in virtual rooms.
+A real-time collaborative music listening web application that allows users to share their device audio and microphone in virtual rooms.
 
 ## Features
 
@@ -41,12 +41,12 @@ The application will be available at `http://localhost:3000`.
 1. **Creating a Room**
    - Click "Create Room" on the home page
    - Enter a room name and your username
-   - Optionally set a password for private rooms
+   - Optionally set a password for private rooms (Todo)
 
 2. **Joining a Room**
-   - Browse available rooms on the home page
+   - Browse available live rooms on the home page
    - Click "Join" on any room
-   - Enter the password if required
+   - Enter the password if required (Todo)
 
 3. **Sharing Audio**
    - In a room, click "Share Audio"
