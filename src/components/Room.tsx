@@ -71,10 +71,6 @@ const Room: React.FC = () => {
         try {
           const pc = createPeerConnection(currentlySharing.id);
           const offer = await pc.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
-          // Rollback if signaling state not stable to preserve m-line order
-          if (pc.connection.signalingState !== 'stable') {
-            await pc.connection.setLocalDescription({ type: 'rollback' });
-          }
           await pc.connection.setLocalDescription(offer);
           socketRef.current!.emit('offer', { offer, to: currentlySharing.id });
         } catch (negErr) {
@@ -118,9 +114,6 @@ const Room: React.FC = () => {
             offerToReceiveAudio: true,
             offerToReceiveVideo: false
           });
-          if (pc.connection.signalingState !== 'stable') {
-            await pc.connection.setLocalDescription({ type: 'rollback' });
-          }
           await pc.connection.setLocalDescription(offer);
           console.log('Sending offer to sharing user:', userId);
           socketRef.current?.emit('offer', { offer, to: userId });
@@ -133,9 +126,6 @@ const Room: React.FC = () => {
                 console.log('Retrying connection with sharing user:', userId);
                 const pcRetry = createPeerConnection(userId);
                 const offerRetry = await pcRetry.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
-                if (pcRetry.connection.signalingState !== 'stable') {
-                  await pcRetry.connection.setLocalDescription({ type: 'rollback' });
-                }
                 await pcRetry.connection.setLocalDescription(offerRetry);
                 socketRef.current?.emit('offer', { offer: offerRetry, to: userId });
               } catch (retryErr) {
@@ -241,14 +231,6 @@ const Room: React.FC = () => {
             sdp: modifySDP(offer.sdp)
           });
           console.log('Modified offer SDP:', modifiedOffer.sdp);
-          
-          // Check if we're in a valid state to set remote description
-          if (pc.connection.signalingState !== 'stable') {
-            console.log('Current signaling state:', pc.connection.signalingState);
-            console.log('Rolling back to stable state...');
-            await pc.connection.setLocalDescription({ type: 'rollback' });
-          }
-          
           await pc.connection.setRemoteDescription(modifiedOffer);
           console.log('Remote description set successfully');
           
