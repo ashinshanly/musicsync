@@ -939,45 +939,51 @@ const Room: React.FC = () => {
 
   return (
     <motion.div
-      className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white p-8"
+      className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-900 text-white p-4 md:p-8"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
       exit="exit"
     >
       <Toaster position="top-right" />
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto backdrop-blur-sm bg-black/20 rounded-2xl p-4 md:p-6 shadow-2xl border border-purple-500/10">
         <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
             <Logo size={60} className="hidden md:block" />
-            <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
-              Room: {roomId}
-            </h1>
+            <div className="flex items-center">
+              <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
+                Room: {roomId}
+              </h1>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="ml-3 p-2 rounded-full bg-purple-500/20 backdrop-blur-sm hover:bg-purple-500/30 text-white transition-all duration-300 border border-purple-500/30"
+                onClick={copyLink}
+                title="Copy invite link"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                  <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                </svg>
+              </motion.button>
+            </div>
           </div>
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg shadow-lg transition-colors"
+            className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-lg shadow-lg transition-all duration-300"
             onClick={() => navigate('/')}
           >
             Leave Room
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg shadow-lg transition-colors ml-4"
-            onClick={copyLink}
-          >
-            🔗 Copy invite link
           </motion.button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Audio Controls */}
-          <div className="lg:col-span-2 bg-gray-800 rounded-xl p-6 shadow-xl">
+          <div className="lg:col-span-2 bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-xl p-6 shadow-xl border border-purple-500/10 transition-all duration-300 hover:border-purple-500/30">
             <div className="flex flex-col items-center space-y-6">
               {sharingUser && !isSharing && (
-                <div className="text-center p-4 bg-purple-500/20 border border-purple-500 rounded-lg w-full">
+                <div className="text-center p-4 bg-purple-500/20 border border-purple-500 rounded-lg w-full backdrop-blur-sm shadow-lg animate-pulse">
                   <span className="font-medium text-purple-300">{sharingUser.name}</span>
                   <span className="text-gray-300"> is currently sharing audio</span>
                 </div>
@@ -1015,10 +1021,17 @@ const Room: React.FC = () => {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="px-6 py-3 rounded-lg shadow-lg text-lg font-semibold transition-colors bg-purple-500 hover:bg-purple-600"
+                    className="px-6 py-3 rounded-lg shadow-lg text-lg font-semibold bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 transition-all duration-300 flex items-center justify-center space-x-2"
                     onClick={startSharing}
                   >
-                    Share {shareType === 'microphone' ? 'Microphone' : 'System Audio'}
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      {shareType === 'microphone' ? (
+                        <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                      ) : (
+                        <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                      )}
+                    </svg>
+                    <span>Share {shareType === 'microphone' ? 'Microphone' : 'System Audio'}</span>
                   </motion.button>
                 </>
               )}
@@ -1027,28 +1040,33 @@ const Room: React.FC = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-6 py-3 rounded-lg shadow-lg text-lg font-semibold transition-colors bg-red-500 hover:bg-red-600"
+                  className="px-6 py-3 rounded-lg shadow-lg text-lg font-semibold bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transition-all duration-300 flex items-center justify-center space-x-2"
                   onClick={stopSharing}
                 >
-                  Stop Sharing
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+                  </svg>
+                  <span>Stop Sharing</span>
                 </motion.button>
               )}
 
               {/* Inline error UI removed; notifications shown via toast */}
 
-              <div className="w-full rounded-xl overflow-hidden shadow-[0_0_30px_rgba(138,58,185,0.3)] border border-purple-500/20 bg-gray-950">
+              <div className="w-full rounded-xl overflow-hidden shadow-[0_0_30px_rgba(138,58,185,0.3)] border border-purple-500/20 bg-gray-950 relative group transition-all duration-500 hover:shadow-[0_0_40px_rgba(138,58,185,0.4)]">
+                <div className="absolute -top-0.5 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-300"></div>
                 <canvas
                   id="visualizer"
                   className="w-full h-64 rounded-lg bg-transparent"
                   width="800"
                   height="200"
                 />
+                <div className="absolute bottom-2 right-2 text-xs text-purple-300/50 font-mono">Audio Visualizer</div>
               </div>
             </div>
           </div>
 
           {/* Users List - Always visible */}
-          <div className="bg-gray-800 rounded-xl p-6 shadow-xl h-fit">
+          <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-xl p-6 shadow-xl border border-blue-500/10 transition-all duration-300 hover:border-blue-500/30 h-fit">
             <h2 className="text-2xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
               Connected Users ({users.length})
             </h2>
@@ -1059,10 +1077,10 @@ const Room: React.FC = () => {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
-                  className={`p-4 rounded-lg ${
+                  className={`p-4 rounded-lg backdrop-blur-sm transition-all duration-300 ${
                     user.isSharing
-                      ? 'bg-purple-500/20 border border-purple-500'
-                      : 'bg-gray-700'
+                      ? 'bg-purple-500/20 border border-purple-500 shadow-lg shadow-purple-500/20'
+                      : 'bg-gray-700/50 hover:bg-gray-700/70 border border-gray-600/20 hover:border-gray-500/30'
                   }`}
                 >
                   <div className="flex items-center justify-between">
