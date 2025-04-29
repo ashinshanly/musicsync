@@ -103,10 +103,14 @@ const Room: React.FC = () => {
         
         if (voteType === 'up') {
           const newDownvotes = hasVoted === 'down' ? Math.max(0, currentDownvotes - 1) : currentDownvotes;
-          return { ...prev, upvotes: currentUpvotes + 1, downvotes: newDownvotes };
+          const newValue = { ...prev, upvotes: currentUpvotes + 1, downvotes: newDownvotes };
+          console.log('Optimistically updating sharing user:', newValue);
+          return newValue;
         } else {
           const newUpvotes = hasVoted === 'up' ? Math.max(0, currentUpvotes - 1) : currentUpvotes;
-          return { ...prev, downvotes: currentDownvotes + 1, upvotes: newUpvotes };
+          const newValue = { ...prev, downvotes: currentDownvotes + 1, upvotes: newUpvotes };
+          console.log('Optimistically updating sharing user:', newValue);
+          return newValue;
         }
       }
       return prev;
@@ -161,6 +165,8 @@ const Room: React.FC = () => {
     });
 
     // Handle vote updates from other users
+    // Remove any existing listeners to prevent duplicates
+    socketRef.current.off('vote-update');
     socketRef.current.on('vote-update', ({ userId, upvotes, downvotes }) => {
       console.log('Vote update received:', { userId, upvotes, downvotes });
       
@@ -176,6 +182,7 @@ const Room: React.FC = () => {
       // Update sharing user if needed
       setSharingUser(prev => {
         if (prev && prev.id === userId) {
+          console.log('Updating sharing user with new vote counts:', { upvotes, downvotes });
           return { ...prev, upvotes, downvotes };
         }
         return prev;
@@ -982,7 +989,8 @@ const Room: React.FC = () => {
       animationFrameRef.current = undefined;
     }
     if (analyserRef.current) {
-      analyserRef.current.disconnect(); analyserRef.current = null;
+      analyserRef.current.disconnect(); 
+      analyserRef.current = null;
     }
   }
 
@@ -1001,33 +1009,6 @@ const Room: React.FC = () => {
       // Force microphone mode on mobile as getDisplayMedia isn't supported
       setShareType('microphone');
     }
-  }, []);
-
-  // Update the cleanup effect
-  useEffect(() => {
-    return () => {
-      stopVisualization();
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-        audioContextRef.current = null;
-      }
-      // Clean up all peer connections
-      peersRef.current.forEach((peer, userId) => {
-        console.log('Cleaning up peer connection for:', userId);
-        peer.connection.close();
-      });
-      peersRef.current.clear();
-      
-      // Clean up all audio elements
-      audioElementsRef.current.forEach(audio => {
-        audio.srcObject = null;
-        audio.remove();
-      });
-      audioElementsRef.current.clear();
-      
-      // Clean up ICE candidate queues
-      iceCandidateQueuesRef.current.clear();
-    };
   }, []);
 
   // Copy room link and show toast
