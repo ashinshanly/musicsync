@@ -1084,61 +1084,10 @@ const Room: React.FC = () => {
           <div className="lg:col-span-2 bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-xl p-6 shadow-xl border border-purple-500/10 transition-all duration-300 hover:border-purple-500/30">
             <div className="flex flex-col items-center space-y-6">
               {sharingUser && !isSharing && (
-                <div className="text-center p-4 bg-purple-500/20 border border-purple-500 rounded-lg w-full backdrop-blur-sm shadow-lg">
-                  <div className="flex flex-col md:flex-row justify-between items-center">
-                    <div>
-                      <span className="font-medium text-purple-300">{sharingUser.name}</span>
-                      <span className="text-gray-300"> is currently sharing audio</span>
-                    </div>
-                    
-                    {/* Voting Controls */}
-                    <div className="flex items-center mt-3 md:mt-0 space-x-6">
-                      <div className="flex items-center">
-                        {/* Upvote Button */}
-                        <motion.button 
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          className={`p-2 rounded-full flex items-center justify-center transition-all duration-300 ${hasVoted === 'up' ? 'bg-green-500/30 text-green-400' : 'hover:bg-gray-700/50 text-gray-400'}`}
-                          onClick={() => handleVote('up')}
-                          disabled={isSharing}
-                        >
-                          <motion.svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            className="h-6 w-6" 
-                            fill="currentColor" 
-                            viewBox="0 0 24 24" 
-                            animate={hasVoted === 'up' ? { scale: [1, 1.2, 1] } : {}}
-                            transition={{ duration: 0.3 }}
-                          >
-                            <path d="M12 3l8 8h-6v10h-4v-10h-6l8-8z" />
-                          </motion.svg>
-                          <span className="ml-1 font-medium">{sharingUser.upvotes || 0}</span>
-                        </motion.button>
-                      </div>
-                      
-                      <div className="flex items-center">
-                        {/* Downvote Button */}
-                        <motion.button 
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          className={`p-2 rounded-full flex items-center justify-center transition-all duration-300 ${hasVoted === 'down' ? 'bg-red-500/30 text-red-400' : 'hover:bg-gray-700/50 text-gray-400'}`}
-                          onClick={() => handleVote('down')}
-                          disabled={isSharing}
-                        >
-                          <motion.svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            className="h-6 w-6" 
-                            fill="currentColor" 
-                            viewBox="0 0 24 24" 
-                            animate={hasVoted === 'down' ? { scale: [1, 1.2, 1] } : {}}
-                            transition={{ duration: 0.3 }}
-                          >
-                            <path d="M12 21l-8-8h6v-10h4v10h6l-8 8z" />
-                          </motion.svg>
-                          <span className="ml-1 font-medium">{sharingUser.downvotes || 0}</span>
-                        </motion.button>
-                      </div>
-                    </div>
+                <div className="text-center p-4 bg-purple-500/20 border border-purple-500 rounded-lg w-full backdrop-blur-sm shadow-lg mb-4">
+                  <div className="flex items-center justify-center">
+                    <span className="font-medium text-purple-300">{sharingUser.name}</span>
+                    <span className="text-gray-300"> is currently sharing audio</span>
                   </div>
                 </div>
               )}
@@ -1193,31 +1142,8 @@ const Room: React.FC = () => {
               {isSharing && sharingUser && (
                 <div className="space-y-4">
                   <div className="text-center p-4 bg-purple-500/30 border border-purple-500/50 rounded-lg w-full backdrop-blur-sm shadow-lg">
-                    <div className="flex flex-col md:flex-row justify-between items-center">
-                      <div>
-                        <span className="font-medium text-white">You are sharing audio</span>
-                      </div>
-                      
-                      {/* Show vote counts to the sharer */}
-                      <div className="flex items-center mt-3 md:mt-0 space-x-6">
-                        <div className="flex items-center">
-                          <div className="p-2 rounded-full flex items-center justify-center transition-all duration-300 text-green-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M12 3l8 8h-6v10h-4v-10h-6l8-8z" />
-                            </svg>
-                            <span className="ml-1 font-medium">{sharingUser.upvotes || 0}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center">
-                          <div className="p-2 rounded-full flex items-center justify-center transition-all duration-300 text-red-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M12 21l-8-8h6v-10h4v10h6l-8 8z" />
-                            </svg>
-                            <span className="ml-1 font-medium">{sharingUser.downvotes || 0}</span>
-                          </div>
-                        </div>
-                      </div>
+                    <div className="flex justify-center items-center">
+                      <span className="font-medium text-white">You are sharing audio</span>
                     </div>
                   </div>
                   
@@ -1239,6 +1165,82 @@ const Room: React.FC = () => {
 
               <div className="w-full rounded-xl overflow-hidden shadow-[0_0_30px_rgba(138,58,185,0.3)] border border-purple-500/20 bg-gray-950 relative group transition-all duration-500 hover:shadow-[0_0_40px_rgba(138,58,185,0.4)]">
                 <div className="absolute -top-0.5 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-300"></div>
+                
+                {/* Voting Controls - Now positioned at the top of the visualizer */}
+                {sharingUser && !isSharing && (
+                  <div className="absolute top-3 right-3 z-10 flex items-center space-x-3 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-purple-500/30 shadow-lg">
+                    {/* Upvote Button */}
+                    <motion.button 
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      className={`p-1.5 rounded-full flex items-center justify-center transition-all duration-300 ${hasVoted === 'up' ? 'bg-green-500/30 text-green-400' : 'hover:bg-gray-700/50 text-gray-400'}`}
+                      onClick={() => handleVote('up')}
+                      disabled={isSharing}
+                    >
+                      <motion.svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        className="h-5 w-5" 
+                        fill="currentColor" 
+                        viewBox="0 0 24 24" 
+                        animate={hasVoted === 'up' ? { scale: [1, 1.2, 1] } : {}}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <path d="M12 3l8 8h-6v10h-4v-10h-6l8-8z" />
+                      </motion.svg>
+                      <span className="ml-1 font-semibold text-sm">{sharingUser.upvotes || 0}</span>
+                    </motion.button>
+                    
+                    {/* Divider */}
+                    <div className="h-6 w-px bg-purple-500/30"></div>
+                    
+                    {/* Downvote Button */}
+                    <motion.button 
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      className={`p-1.5 rounded-full flex items-center justify-center transition-all duration-300 ${hasVoted === 'down' ? 'bg-red-500/30 text-red-400' : 'hover:bg-gray-700/50 text-gray-400'}`}
+                      onClick={() => handleVote('down')}
+                      disabled={isSharing}
+                    >
+                      <motion.svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        className="h-5 w-5" 
+                        fill="currentColor" 
+                        viewBox="0 0 24 24" 
+                        animate={hasVoted === 'down' ? { scale: [1, 1.2, 1] } : {}}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <path d="M12 21l-8-8h6v-10h4v10h6l-8 8z" />
+                      </motion.svg>
+                      <span className="ml-1 font-semibold text-sm">{sharingUser.downvotes || 0}</span>
+                    </motion.button>
+                  </div>
+                )}
+                
+                {/* Show vote counts to the sharer on visualizer */}
+                {isSharing && sharingUser && (
+                  <div className="absolute top-3 right-3 z-10 flex items-center space-x-3 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-purple-500/30 shadow-lg">
+                    <div className="flex items-center">
+                      <div className="p-1.5 flex items-center justify-center text-green-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 3l8 8h-6v10h-4v-10h-6l8-8z" />
+                        </svg>
+                        <span className="ml-1 font-semibold text-sm">{sharingUser.upvotes || 0}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="h-6 w-px bg-purple-500/30"></div>
+                    
+                    <div className="flex items-center">
+                      <div className="p-1.5 flex items-center justify-center text-red-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 21l-8-8h6v-10h4v10h6l-8 8z" />
+                        </svg>
+                        <span className="ml-1 font-semibold text-sm">{sharingUser.downvotes || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <canvas
                   id="visualizer"
                   className="w-full h-64 rounded-lg bg-transparent"
