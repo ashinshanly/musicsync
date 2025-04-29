@@ -45,7 +45,7 @@ The application will be available at `http://localhost:3000`.
 
 2. **Joining a Room**
    - Browse available live rooms on the home page
-   - Click "Join" on any room
+   - Click "Join Room" on any room
    - Enter the password if required (Todo)
 
 3. **Sharing Audio**
