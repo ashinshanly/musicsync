@@ -48,6 +48,7 @@ const Room: React.FC = () => {
   const peersRef = useRef<Map<string, PeerConnection>>(new Map());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const iceCandidateQueuesRef = useRef<Map<string, RTCIceCandidate[]>>(new Map());
+  const negotiationAttemptsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     // Initialize WebSocket connection
@@ -87,36 +88,53 @@ const Room: React.FC = () => {
     });
 
     socketRef.current.on('user-started-sharing', async ({ userId, username }) => {
+      // Skip redundant negotiation if already connected
+      if (peersRef.current.has(userId)) {
+        console.log('Already connected to sharing user:', userId, '- skipping negotiation');
+        return;
+      }
       setUsers(prevUsers => {
         const updatedUsers = prevUsers.map(user => ({
           ...user,
           isSharing: user.id === userId
         }));
-        // Find and set the sharing user from the updated users array
         const sharingUser = updatedUsers.find(user => user.id === userId);
         setSharingUser(sharingUser || null);
         return updatedUsers;
       });
 
       // If this is a new user joining a room with an active sharing session,
-      // initiate the WebRTC connection with the sharing user
-      if (userId !== socketRef.current?.id) {
+      // initiate the WebRTC connection only if not already connected
+      if (userId !== socketRef.current?.id && !peersRef.current.has(userId)) {
         try {
           console.log('Setting up connection with sharing user:', userId);
           const pc = createPeerConnection(userId);
-          
           // Create and send offer to the sharing user
           const offer = await pc.connection.createOffer({
             offerToReceiveAudio: true,
             offerToReceiveVideo: false
           });
           await pc.connection.setLocalDescription(offer);
-          
           console.log('Sending offer to sharing user:', userId);
           socketRef.current?.emit('offer', { offer, to: userId });
         } catch (error) {
-          console.error('Error setting up connection with sharing user:', error);
-          toast.error('Failed to connect to sharing user. Please try joining the room again.');
+          const prev = negotiationAttemptsRef.current.get(userId) || 0;
+          if (prev < 2) {
+            negotiationAttemptsRef.current.set(userId, prev + 1);
+            setTimeout(async () => {
+              try {
+                console.log('Retrying connection with sharing user:', userId);
+                const pcRetry = createPeerConnection(userId);
+                const offerRetry = await pcRetry.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
+                await pcRetry.connection.setLocalDescription(offerRetry);
+                socketRef.current?.emit('offer', { offer: offerRetry, to: userId });
+              } catch (retryErr) {
+                console.error('Retry failed for:', userId, retryErr);
+              }
+            }, 2000);
+          } else {
+            toast.error('Failed to connect to sharing user. Please try joining the room again.');
+          }
         }
       }
     });
