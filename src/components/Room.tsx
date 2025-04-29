@@ -71,6 +71,10 @@ const Room: React.FC = () => {
         try {
           const pc = createPeerConnection(currentlySharing.id);
           const offer = await pc.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
+          // Rollback if signaling state not stable to preserve m-line order
+          if (pc.connection.signalingState !== 'stable') {
+            await pc.connection.setLocalDescription({ type: 'rollback' });
+          }
           await pc.connection.setLocalDescription(offer);
           socketRef.current!.emit('offer', { offer, to: currentlySharing.id });
         } catch (negErr) {
@@ -114,6 +118,9 @@ const Room: React.FC = () => {
             offerToReceiveAudio: true,
             offerToReceiveVideo: false
           });
+          if (pc.connection.signalingState !== 'stable') {
+            await pc.connection.setLocalDescription({ type: 'rollback' });
+          }
           await pc.connection.setLocalDescription(offer);
           console.log('Sending offer to sharing user:', userId);
           socketRef.current?.emit('offer', { offer, to: userId });
@@ -126,6 +133,9 @@ const Room: React.FC = () => {
                 console.log('Retrying connection with sharing user:', userId);
                 const pcRetry = createPeerConnection(userId);
                 const offerRetry = await pcRetry.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
+                if (pcRetry.connection.signalingState !== 'stable') {
+                  await pcRetry.connection.setLocalDescription({ type: 'rollback' });
+                }
                 await pcRetry.connection.setLocalDescription(offerRetry);
                 socketRef.current?.emit('offer', { offer: offerRetry, to: userId });
               } catch (retryErr) {
@@ -202,7 +212,7 @@ const Room: React.FC = () => {
               if (error.name === 'NotAllowedError') {
                 toast.error('Please click anywhere on the page to start audio playback');
               } else {
-                toast.error('Try clicking anywhere on the page.');
+                toast.error('Failed to play received audio. Try clicking anywhere on the page.');
               }
               // Try to play again after a short delay
               const currentAudioElement = audioElement;
@@ -276,23 +286,18 @@ const Room: React.FC = () => {
         
         // Create and send answer
         try {
-          // Add local audio tracks for sharer to send audio
-          if (localStreamRef.current) {
-            localStreamRef.current.getAudioTracks().forEach(track => {
-              console.log('Adding local track for sharer to peer:', from);
-              pc!.connection.addTrack(track, localStreamRef.current as MediaStream);
-            });
-          }
           console.log('Creating answer...');
           const answer = await pc.connection.createAnswer({
             offerToReceiveAudio: true,
             offerToReceiveVideo: false
           });
+          if (pc.connection.signalingState !== 'stable') {
+            await pc.connection.setLocalDescription({ type: 'rollback' });
+          }
+          await pc.connection.setLocalDescription(answer);
           console.log('Answer created successfully');
           
           // Set local description with the original answer first
-          await pc.connection.setLocalDescription(answer);
-          
           // Then modify the SDP and send
           const modifiedAnswer = new RTCSessionDescription({
             type: 'answer',
@@ -437,13 +442,15 @@ const Room: React.FC = () => {
       rtcpMuxPolicy: 'require'
     });
 
-    // Add recvonly audio transceiver to ensure remote audio on Safari/mobile
-    if (!localStreamRef.current && 'addTransceiver' in pc) {
-      try {
-        pc.addTransceiver('audio', { direction: 'recvonly' });
-      } catch (e) {
-        console.warn('Transceiver add failed:', e);
-      }
+    // Stable audio m-line: add transceiver before negotiating
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach(track => {
+        try { pc.addTransceiver(track, { direction: 'sendonly' }); }
+        catch (e) { console.warn('addTransceiver sendonly failed:', e); }
+      });
+    } else {
+      try { pc.addTransceiver('audio', { direction: 'recvonly' }); }
+      catch (e) { console.warn('addTransceiver recvonly failed:', e); }
     }
 
     // Add comprehensive connection state monitoring
@@ -470,22 +477,6 @@ const Room: React.FC = () => {
 
     pc.onconnectionstatechange = () => {
       console.log(`Connection state with ${userId}:`, pc.connectionState);
-    };
-
-    // Add negotiation needed handler
-    pc.onnegotiationneeded = async () => {
-      console.log('Negotiation needed for peer:', userId);
-      try {
-        const offer = await pc.createOffer({
-          offerToReceiveAudio: true,
-          offerToReceiveVideo: false
-        });
-        await pc.setLocalDescription(offer);
-        socketRef.current?.emit('offer', { offer, to: userId });
-      } catch (err) {
-        console.error('Error during negotiation:', err);
-        toast.error('Failed to negotiate connection. Please try again.');
-      }
     };
 
     // Set up the ontrack handler for receiving audio
@@ -596,100 +587,6 @@ const Room: React.FC = () => {
 
       // Set up visualization immediately after getting the stream
       setupAudioVisualization(stream);
-
-      console.log('Creating peer connections for users:', users);
-      
-      // Create a base offer to ensure consistent m-line ordering
-      const basePc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun3.l.google.com:19302' },
-          { urls: 'stun:stun4.l.google.com:19302' },
-          {
-            urls: [
-              'turn:openrelay.metered.ca:80',
-              'turn:openrelay.metered.ca:443',
-              'turn:openrelay.metered.ca:443?transport=tcp'
-            ],
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          }
-        ],
-        iceCandidatePoolSize: 10,
-        iceTransportPolicy: 'all',
-        bundlePolicy: 'max-bundle',
-        rtcpMuxPolicy: 'require'
-      });
-
-      // Add the track to the base connection
-      stream.getAudioTracks().forEach(track => {
-        basePc.addTrack(track, stream);
-      });
-
-      // Create the base offer
-      const baseOffer = await basePc.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: false
-      });
-
-      // Close the base connection
-      basePc.close();
-
-      // Create peer connections and add tracks
-      for (const user of users) {
-        if (user.id !== socketRef.current?.id) {
-          console.log('Setting up connection for user:', user.id);
-          const pc = createPeerConnection(user.id);
-          
-          // Add tracks to the peer connection with proper configuration
-          stream.getAudioTracks().forEach(track => {
-            console.log('Adding track to peer connection:', track.label);
-            // Ensure track is enabled
-            track.enabled = true;
-            // Add track with proper stream
-            pc.connection.addTrack(track, stream);
-          });
-
-          // Create and send offer using the base offer as a template
-          const createAndSendOffer = async () => {
-            try {
-              console.log('Creating offer for user:', user.id);
-              const offer = await pc.connection.createOffer({
-                offerToReceiveAudio: true,
-                offerToReceiveVideo: false
-              });
-              
-              // Set local description first
-              await pc.connection.setLocalDescription(offer);
-              
-              // Then modify the SDP and send
-              const modifiedOffer = new RTCSessionDescription({
-                type: 'offer',
-                sdp: modifySDP(offer.sdp)
-              });
-              
-              console.log('Sending offer to user:', user.id);
-              socketRef.current?.emit('offer', { offer: modifiedOffer, to: user.id });
-            } catch (err) {
-              console.error('Error creating/sending offer:', err);
-              //toast.error('Failed to establish connection. Please try again.');
-            }
-          };
-
-          // Create and send offer immediately
-          createAndSendOffer();
-
-          // Also set up negotiation needed handler for future renegotiations
-          pc.connection.onnegotiationneeded = createAndSendOffer;
-
-          // Add connection state monitoring
-          pc.connection.onconnectionstatechange = () => {
-            console.log(`Connection state with ${user.id}:`, pc.connection.connectionState);
-          };
-        }
-      }
 
       setIsSharing(true);
       // Update local states immediately using the previous state
