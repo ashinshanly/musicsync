@@ -21,6 +21,16 @@ const SOCKET_URL = process.env.NODE_ENV === 'production'
   ? 'https://musicsync-server.onrender.com'
   : 'http://localhost:3001';
 
+// Generate random username if none provided
+function generateUsername(): string {
+  const adjectives = ['Swift','Mellow','Brisk','Cosmic','Lunar','Solar'];
+  const nouns = ['Beat','Wave','Rhythm','Echo','Pulse','Vibe'];
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const num = Math.floor(Math.random() * 1000);
+  return `${adj}${noun}${num}`;
+}
+
 const Room: React.FC = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -29,6 +39,7 @@ const Room: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [shareType, setShareType] = useState<'microphone' | 'system'>('system');
   const [sharingUser, setSharingUser] = useState<User | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   
   const socketRef = useRef<Socket>();
   const localStreamRef = useRef<MediaStream>();
@@ -42,7 +53,11 @@ const Room: React.FC = () => {
   useEffect(() => {
     // Initialize WebSocket connection
     socketRef.current = io(SOCKET_URL);
-    const username = localStorage.getItem('username') || 'Anonymous';
+    let username = localStorage.getItem('username');
+    if (!username) {
+      username = generateUsername();
+      localStorage.setItem('username', username);
+    }
     
     socketRef.current.emit('join-room', { roomId, username });
 
@@ -883,6 +898,15 @@ const Room: React.FC = () => {
     };
   }, []);
 
+  // Copy room link and show toast
+  const copyLink = () => {
+    const link = window.location.href;
+    navigator.clipboard.writeText(link)
+      .then(() => setToast('Invite link copied!'))
+      .catch(() => setToast('Failed to copy link'));
+    setTimeout(() => setToast(null), 3000);
+  };
+
   return (
     <motion.div
       className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white p-8"
@@ -891,6 +915,11 @@ const Room: React.FC = () => {
       animate="visible"
       exit="exit"
     >
+      {toast && (
+        <div className="fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-md">
+          {toast}
+        </div>
+      )}
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-4">
@@ -906,6 +935,14 @@ const Room: React.FC = () => {
             onClick={() => navigate('/')}
           >
             Leave Room
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg shadow-lg transition-colors ml-4"
+            onClick={copyLink}
+          >
+            🔗 Copy invite link
           </motion.button>
         </div>
 
