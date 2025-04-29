@@ -11,6 +11,8 @@ interface User {
   id: string;
   name: string;
   isSharing: boolean;
+  upvotes?: number;
+  downvotes?: number;
 }
 
 interface PeerConnection {
@@ -40,6 +42,7 @@ const Room: React.FC = () => {
   const [shareType, setShareType] = useState<'microphone' | 'system'>('microphone');
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [sharingUser, setSharingUser] = useState<User | null>(null);
+  const [hasVoted, setHasVoted] = useState<'up' | 'down' | null>(null);
   
   const socketRef = useRef<Socket>();
   const localStreamRef = useRef<MediaStream>();
@@ -51,6 +54,34 @@ const Room: React.FC = () => {
   const iceCandidateQueuesRef = useRef<Map<string, RTCIceCandidate[]>>(new Map());
   const negotiationAttemptsRef = useRef<Map<string, number>>(new Map());
 
+  // Function to handle voting
+  const handleVote = (voteType: 'up' | 'down') => {
+    if (!sharingUser || !socketRef.current) return;
+    
+    // Don't allow re-votes of the same type
+    if (hasVoted === voteType) return;
+    
+    // Don't allow voting on your own stream
+    if (isSharing) return;
+    
+    // Emit vote event to server
+    socketRef.current.emit('vote', {
+      roomId,
+      targetUserId: sharingUser.id,
+      voteType
+    });
+    
+    // Update local state
+    setHasVoted(voteType);
+    
+    // Show toast notification
+    if (voteType === 'up') {
+      toast.success('You upvoted this audio stream!');
+    } else {
+      toast.success('You downvoted this audio stream');
+    }
+  };
+  
   useEffect(() => {
     // Initialize WebSocket connection
     socketRef.current = io(SOCKET_URL);
@@ -88,6 +119,26 @@ const Room: React.FC = () => {
       }
     });
 
+    // Handle vote updates from other users
+    socketRef.current.on('vote-update', ({ userId, upvotes, downvotes }) => {
+      setUsers(prevUsers => {
+        return prevUsers.map(user => {
+          if (user.id === userId) {
+            return { ...user, upvotes, downvotes };
+          }
+          return user;
+        });
+      });
+      
+      // Update sharing user if needed
+      setSharingUser(prev => {
+        if (prev && prev.id === userId) {
+          return { ...prev, upvotes, downvotes };
+        }
+        return prev;
+      });
+    });
+
     socketRef.current.on('user-started-sharing', async ({ userId, username }) => {
       // Skip redundant negotiation if already connected
       if (peersRef.current.has(userId)) {
@@ -97,12 +148,17 @@ const Room: React.FC = () => {
       setUsers(prevUsers => {
         const updatedUsers = prevUsers.map(user => ({
           ...user,
-          isSharing: user.id === userId
+          isSharing: user.id === userId,
+          // Reset voting stats for new sharing session
+          ...(user.id === userId && { upvotes: 0, downvotes: 0 })
         }));
         const sharingUser = updatedUsers.find(user => user.id === userId);
         setSharingUser(sharingUser || null);
         return updatedUsers;
       });
+      
+      // Reset vote state when a new user starts sharing
+      setHasVoted(null);
 
       // If this is a new user joining a room with an active sharing session,
       // initiate the WebRTC connection only if not already connected
@@ -149,6 +205,8 @@ const Room: React.FC = () => {
         setSharingUser(null);
         return updatedUsers;
       });
+      // Reset vote state when sharing stops
+      setHasVoted(null);
       stopVisualization();
     });
 
@@ -983,9 +1041,62 @@ const Room: React.FC = () => {
           <div className="lg:col-span-2 bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-xl p-6 shadow-xl border border-purple-500/10 transition-all duration-300 hover:border-purple-500/30">
             <div className="flex flex-col items-center space-y-6">
               {sharingUser && !isSharing && (
-                <div className="text-center p-4 bg-purple-500/20 border border-purple-500 rounded-lg w-full backdrop-blur-sm shadow-lg animate-pulse">
-                  <span className="font-medium text-purple-300">{sharingUser.name}</span>
-                  <span className="text-gray-300"> is currently sharing audio</span>
+                <div className="text-center p-4 bg-purple-500/20 border border-purple-500 rounded-lg w-full backdrop-blur-sm shadow-lg">
+                  <div className="flex flex-col md:flex-row justify-between items-center">
+                    <div>
+                      <span className="font-medium text-purple-300">{sharingUser.name}</span>
+                      <span className="text-gray-300"> is currently sharing audio</span>
+                    </div>
+                    
+                    {/* Voting Controls */}
+                    <div className="flex items-center mt-3 md:mt-0 space-x-6">
+                      <div className="flex items-center">
+                        {/* Upvote Button */}
+                        <motion.button 
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          className={`p-2 rounded-full flex items-center justify-center transition-all duration-300 ${hasVoted === 'up' ? 'bg-green-500/30 text-green-400' : 'hover:bg-gray-700/50 text-gray-400'}`}
+                          onClick={() => handleVote('up')}
+                          disabled={isSharing}
+                        >
+                          <motion.svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            className="h-6 w-6" 
+                            fill="currentColor" 
+                            viewBox="0 0 24 24" 
+                            animate={hasVoted === 'up' ? { scale: [1, 1.2, 1] } : {}}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <path d="M12 4.435c-1.989-5.399-12-4.597-12 3.568 0 4.068 3.06 9.481 12 14.997 8.94-5.516 12-10.929 12-14.997 0-8.118-10-8.999-12-3.568z" />
+                          </motion.svg>
+                          <span className="ml-1 font-medium">{sharingUser.upvotes || 0}</span>
+                        </motion.button>
+                      </div>
+                      
+                      <div className="flex items-center">
+                        {/* Downvote Button */}
+                        <motion.button 
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          className={`p-2 rounded-full flex items-center justify-center transition-all duration-300 ${hasVoted === 'down' ? 'bg-red-500/30 text-red-400' : 'hover:bg-gray-700/50 text-gray-400'}`}
+                          onClick={() => handleVote('down')}
+                          disabled={isSharing}
+                        >
+                          <motion.svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            className="h-6 w-6" 
+                            fill="currentColor" 
+                            viewBox="0 0 24 24" 
+                            animate={hasVoted === 'down' ? { scale: [1, 1.2, 1] } : {}}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <path d="M12 9.229c.234-1.12 1.547-6.229 5.382-6.229 2.22 0 4.618 1.551 4.618 5.003 0 3.907-3.627 8.47-10 12.629-6.373-4.159-10-8.722-10-12.629 0-3.484 2.369-5.005 4.577-5.005 3.923 0 5.145 5.126 5.423 6.231zm-12-1.226c0 4.068 3.06 9.481 12 14.997 8.94-5.516 12-10.929 12-14.997 0-7.962-9.648-9.028-12-3.737-2.338-5.262-12-4.27-12 3.737z" />
+                          </motion.svg>
+                          <span className="ml-1 font-medium">{sharingUser.downvotes || 0}</span>
+                        </motion.button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
