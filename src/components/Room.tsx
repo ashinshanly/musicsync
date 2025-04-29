@@ -901,11 +901,17 @@ const Room: React.FC = () => {
           } else {
             toast.error(`Failed to play received audio: ${error.message}. Try clicking anywhere on the page.`);
             // Try to play again after a short delay with user interaction prompt
-            document.body.addEventListener('click', function audioEnableClickHandler() {
-              audioElement.play().catch(console.error);
-              document.body.removeEventListener('click', audioEnableClickHandler);
-              console.log('Attempting to play audio after user interaction');
-            }, { once: true });
+            // Save a reference to the current audioElement to use in the event handler
+            const currentAudioElement = audioElement;
+            if (currentAudioElement) {
+              document.body.addEventListener('click', function audioEnableClickHandler() {
+                if (currentAudioElement) {
+                  currentAudioElement.play().catch(console.error);
+                  document.body.removeEventListener('click', audioEnableClickHandler);
+                  console.log('Attempting to play audio after user interaction');
+                }
+              }, { once: true });
+            }
           }
         });
       }
