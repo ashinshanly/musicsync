@@ -430,6 +430,15 @@ const Room: React.FC = () => {
       rtcpMuxPolicy: 'require'
     });
 
+    // Add recvonly audio transceiver to ensure remote audio on Safari/mobile
+    if ('addTransceiver' in pc) {
+      try {
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+      } catch (e) {
+        console.warn('Transceiver add failed:', e);
+      }
+    }
+
     // Add comprehensive connection state monitoring
     pc.oniceconnectionstatechange = () => {
       console.log(`ICE connection state with ${userId}:`, pc.iceConnectionState);
