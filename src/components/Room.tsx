@@ -168,7 +168,9 @@ const Room: React.FC = () => {
         }
         
         // Initialize ICE candidate queue for this peer
-        iceCandidateQueuesRef.current.set(from, []);
+        if (!iceCandidateQueuesRef.current.has(from)) {
+          iceCandidateQueuesRef.current.set(from, []);
+        }
         
         // Set up the ontrack handler for receiving audio
         pc.connection.ontrack = (event) => {
@@ -347,7 +349,12 @@ const Room: React.FC = () => {
         const pc = peersRef.current.get(from);
         
         if (!pc) {
-          console.error('No peer connection found for ICE candidate from:', from);
+          console.warn('Peer connection not ready for ICE candidate from:', from, '- queueing');
+          if (candidate) {
+            const queue = iceCandidateQueuesRef.current.get(from) || [];
+            queue.push(candidate);
+            iceCandidateQueuesRef.current.set(from, queue);
+          }
           return;
         }
 
