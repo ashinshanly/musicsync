@@ -576,9 +576,53 @@ const Room: React.FC = () => {
     // Add comprehensive connection state monitoring
     pc.oniceconnectionstatechange = () => {
       console.log(`ICE connection state with ${userId}:`, pc.iceConnectionState);
-      if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-        console.log('Restarting ICE for peer:', userId);
-        pc.restartIce();
+      
+      // Handle different ICE connection states
+      switch (pc.iceConnectionState) {
+        case 'checking':
+          console.log('ICE checking in progress...');
+          break;
+        case 'connected':
+          console.log('ICE connected successfully');
+          toast.success('Connection established', { id: 'ice-connected' });
+          break;
+        case 'completed':
+          console.log('ICE negotiation completed');
+          break;
+        case 'failed':
+          console.log('ICE connection failed - attempting restart');
+          toast.error('Connection issue detected - attempting to recover');
+          pc.restartIce();
+          
+          // After a delay, try more aggressive recovery if still failed
+          setTimeout(() => {
+            if (pc.iceConnectionState === 'failed') {
+              console.log('Still failed after restart attempt, trying to renegotiate');
+              // If we're the sharer, try to renegotiate
+              if (isSharing && localStreamRef.current) {
+                try {
+                  // Create a new offer
+                  pc.createOffer({
+                    offerToReceiveAudio: true,
+                    iceRestart: true
+                  }).then(offer => {
+                    pc.setLocalDescription(offer).then(() => {
+                      socketRef.current?.emit('offer', { offer, to: userId });
+                      console.log('Sent renegotiation offer');
+                    });
+                  });
+                } catch (e) {
+                  console.error('Error during renegotiation:', e);
+                }
+              }
+            }
+          }, 5000);
+          break;
+        case 'disconnected':
+          console.log('ICE disconnected - attempting recovery');
+          toast.warning('Connection interrupted - trying to recover');
+          pc.restartIce();
+          break;
       }
     };
 
@@ -782,16 +826,42 @@ const Room: React.FC = () => {
     const stream = (event.streams && event.streams.length > 0)
       ? event.streams[0]
       : new MediaStream([event.track]);
-    console.log('Received track from peer:', stream);
+    console.log('Received track from peer:', stream, 'with audio tracks:', stream.getAudioTracks().length);
+    
+    if (stream.getAudioTracks().length === 0) {
+      console.error('No audio tracks in the received stream');
+      toast.error('No audio tracks received. The sharer may need to restart sharing.');
+      return;
+    }
+
+    // Log audio track details for debugging
+    stream.getAudioTracks().forEach(track => {
+      console.log('Audio track details:', {
+        id: track.id,
+        label: track.label,
+        enabled: track.enabled,
+        muted: track.muted,
+        readyState: track.readyState
+      });
+    });
     
     // Create or get existing audio element for this user
     let audioElement = audioElementsRef.current.get(userId);
     if (!audioElement) {
       audioElement = new Audio();
       audioElement.autoplay = true;
+      audioElement.controls = true; // Add controls for easier debugging
       (audioElement as any).playsInline = true;
       audioElement.setAttribute('playsinline', '');
-      audioElement.style.display = 'none';
+      
+      // Position the audio control in a non-disruptive way for debugging
+      audioElement.style.position = 'fixed';
+      audioElement.style.bottom = '10px';
+      audioElement.style.right = '10px';
+      audioElement.style.width = '300px';
+      audioElement.style.zIndex = '1000';
+      audioElement.style.opacity = '0.7';
+      
       document.body.appendChild(audioElement);
       audioElement.id = `audio-${userId}`;
       audioElementsRef.current.set(userId, audioElement);
@@ -802,29 +872,44 @@ const Room: React.FC = () => {
         toast.error('Error playing received audio. Please check your audio output settings.');
       };
 
+      // Add success logging
+      audioElement.onplaying = () => {
+        console.log('Audio playback started successfully for', userId);
+        toast.success('Audio connection established!');
+      };
+
       // Add volume control
       audioElement.volume = 1.0;
     }
 
     // Set the stream as the source and play
-    audioElement.srcObject = stream;
-    const playPromise = audioElement.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(error => {
-        console.error('Error playing audio:', error);
-        if (error.name === 'NotAllowedError') {
-          toast.error('Please click anywhere on the page to start audio playback');
-        } else {
-          toast.error('Failed to play received audio. Try clicking anywhere on the page.');
-        }
-        // Try to play again after a short delay
-        const currentAudioElement = audioElement;
-        if (currentAudioElement) {
-          setTimeout(() => {
-            currentAudioElement.play().catch(console.error);
-          }, 1000);
-        }
-      });
+    try {
+      audioElement.srcObject = stream;
+      console.log('Set srcObject for audio element:', userId);
+      
+      // Add a user gesture requirement if autoplay is restricted
+      const playPromise = audioElement.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('Error playing audio:', error);
+          if (error.name === 'NotAllowedError') {
+            console.log('Autoplay prevented by browser policy');
+            // Create a UI element to enable audio
+            createAudioEnableButton(userId, audioElement);
+          } else {
+            toast.error(`Failed to play received audio: ${error.message}. Try clicking anywhere on the page.`);
+            // Try to play again after a short delay with user interaction prompt
+            document.body.addEventListener('click', function audioEnableClickHandler() {
+              audioElement.play().catch(console.error);
+              document.body.removeEventListener('click', audioEnableClickHandler);
+              console.log('Attempting to play audio after user interaction');
+            }, { once: true });
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Exception when setting up audio playback:', err);
+      toast.error('Failed to set up audio playback. Technical details in console.');
     }
 
     // Set up visualization for any received audio track - show for everyone
@@ -859,8 +944,15 @@ const Room: React.FC = () => {
 
   const modifySDP = (sdp: string | undefined): string => {
     if (!sdp) return '';
-    // enforce Opus stereo in SDP
-    return sdp.replace(/a=fmtp:111 (.*)/, 'a=fmtp:111 $1; stereo=1; sprop-stereo=1');
+    // More robust Opus stereo enforcement in SDP
+    return sdp.replace(/a=fmtp:(\d+) (.*)/, (match, pt, params) => {
+      // Only modify if it's actually Opus
+      if (sdp.includes(`a=rtpmap:${pt} opus/`)) {
+        console.log(`Found Opus codec at payload type ${pt}, enhancing for stereo`);
+        return `a=fmtp:${pt} ${params}; stereo=1; sprop-stereo=1; maxaveragebitrate=510000; maxplaybackrate=48000; useinbandfec=1; cbr=1`;
+      }
+      return match;
+    });
   };
 
   // Audio visualization using Web Audio API with improved aesthetics
@@ -1012,6 +1104,71 @@ const Room: React.FC = () => {
   }, []);
 
   // Copy room link and show toast
+  // Function to create a UI button to enable audio for a specific stream
+  const createAudioEnableButton = (userId: string, audioElement: HTMLAudioElement) => {
+    // Remove any existing button
+    const existingButton = document.getElementById(`enable-audio-${userId}`);
+    if (existingButton) existingButton.remove();
+    
+    // Create new button
+    const button = document.createElement('button');
+    button.id = `enable-audio-${userId}`;
+    button.textContent = 'Click to Enable Audio';
+    button.style.position = 'fixed';
+    button.style.top = '50%';
+    button.style.left = '50%';
+    button.style.transform = 'translate(-50%, -50%)';
+    button.style.padding = '15px 30px';
+    button.style.backgroundColor = '#8B5CF6';
+    button.style.color = 'white';
+    button.style.border = 'none';
+    button.style.borderRadius = '8px';
+    button.style.fontWeight = 'bold';
+    button.style.fontSize = '18px';
+    button.style.zIndex = '10000';
+    button.style.cursor = 'pointer';
+    button.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.25)';
+    
+    // Add hover effect
+    button.onmouseover = () => {
+      button.style.backgroundColor = '#7C3AED';
+    };
+    button.onmouseout = () => {
+      button.style.backgroundColor = '#8B5CF6';
+    };
+    
+    // Add click handler
+    button.onclick = () => {
+      audioElement.play()
+        .then(() => {
+          console.log('Audio enabled by user interaction');
+          toast.success('Audio enabled!');
+          button.remove();
+        })
+        .catch(err => {
+          console.error('Still could not play audio after user interaction:', err);
+          toast.error('Still having trouble with audio. Try refreshing the page.');
+        });
+    };
+    
+    document.body.appendChild(button);
+    
+    // Add a pulsing animation to draw attention
+    const keyframes = [
+      { transform: 'translate(-50%, -50%) scale(1)', boxShadow: '0 4px 20px rgba(139, 92, 246, 0.3)' },
+      { transform: 'translate(-50%, -50%) scale(1.05)', boxShadow: '0 4px 25px rgba(139, 92, 246, 0.7)' },
+      { transform: 'translate(-50%, -50%) scale(1)', boxShadow: '0 4px 20px rgba(139, 92, 246, 0.3)' }
+    ];
+    
+    button.animate(keyframes, {
+      duration: 1500,
+      iterations: Infinity
+    });
+    
+    // Show toast with instructions
+    toast.success('Click the button to enable audio', { duration: 5000 });
+  };
+
   const copyLink = () => {
     const link = window.location.href;
     navigator.clipboard.writeText(link)
@@ -1066,9 +1223,35 @@ const Room: React.FC = () => {
             <div className="flex flex-col items-center space-y-6">
               {sharingUser && !isSharing && (
                 <div className="text-center p-4 bg-purple-500/20 border border-purple-500 rounded-lg w-full backdrop-blur-sm shadow-lg mb-4">
-                  <div className="flex items-center justify-center">
+                  <div className="flex items-center justify-center flex-wrap">
                     <span className="font-medium text-purple-300">{sharingUser.name}</span>
                     <span className="text-gray-300"> is currently sharing audio</span>
+                    <button 
+                      className="ml-4 mt-2 sm:mt-0 px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-full text-sm transition-all"
+                      onClick={() => {
+                        // Find all audio elements and try to play them
+                        const audioElements = document.querySelectorAll('audio');
+                        let playAttempts = 0;
+                        
+                        audioElements.forEach(audio => {
+                          if (audio.srcObject) {
+                            audio.play().then(() => {
+                              playAttempts++;
+                              console.log(`Played audio ${playAttempts}/${audioElements.length}`);
+                              if (playAttempts === audioElements.length) {
+                                toast.success('Audio enabled!');
+                              }
+                            }).catch(err => {
+                              console.error('Could not play audio:', err);
+                            });
+                          }
+                        });
+                        
+                        toast.success('Attempting to enable audio...', { id: 'enable-audio-attempt' });
+                      }}
+                    >
+                      Enable Audio
+                    </button>
                   </div>
                 </div>
               )}
