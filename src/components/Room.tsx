@@ -237,9 +237,10 @@ const Room: React.FC = () => {
           // If we're the sharer, make sure we add our tracks after setting remote desc
           if (localStreamRef.current && isSharing && pc) {
             console.log('Adding local tracks as sharer to new connection with:', from);
+            const peerConnection = pc; // Create stable reference for callback
             localStreamRef.current.getAudioTracks().forEach(track => {
               try {
-                pc.connection.addTrack(track, localStreamRef.current as MediaStream);
+                peerConnection.connection.addTrack(track, localStreamRef.current as MediaStream);
               } catch (e) {
                 console.warn('Error adding track after setRemoteDescription:', e);
               }
