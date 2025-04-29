@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps */
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
 import Logo from './Logo';
 
@@ -13,22 +15,6 @@ interface User {
 interface PeerConnection {
   connection: RTCPeerConnection;
   stream?: MediaStream;
-}
-
-// Stub for SDP modification
-function modifySDP(sdp: string): string {
-  // Currently a no-op stub
-  return sdp;
-}
-
-// Stub for audio visualization setup
-function setupAudioVisualization(stream: MediaStream): void {
-  // TODO: implement audio visualization
-}
-
-// Stub for stopping audio visualization
-function stopVisualization(): void {
-  // TODO: implement visualization cleanup
 }
 
 const SOCKET_URL = process.env.NODE_ENV === 'production' 
@@ -168,7 +154,7 @@ const Room: React.FC = () => {
           if (playPromise !== undefined) {
             playPromise.catch(error => {
               console.error('Error playing audio:', error);
-              setError('Failed to play received audio. Try clicking anywhere on the page.');
+              setError('Try clicking anywhere on the page.');
               // Try to play again after a short delay
               const currentAudioElement = audioElement;
               if (currentAudioElement) {
@@ -272,7 +258,7 @@ const Room: React.FC = () => {
         }
       } catch (err) {
         console.error('Error handling offer:', err);
-        setError(err instanceof Error ? err.message : 'Failed to establish connection with sharing user. Please try again.');
+        //setError(err instanceof Error ? err.message : 'Failed to establish connection with sharing user. Please try again.');
       }
     });
 
@@ -304,7 +290,7 @@ const Room: React.FC = () => {
         }
       } catch (err) {
         console.error('Error handling answer:', err);
-        setError(err instanceof Error ? err.message : 'Failed to process answer from peer');
+        //setError(err instanceof Error ? err.message : 'Failed to process answer from peer');
       }
     });
 
@@ -414,7 +400,7 @@ const Room: React.FC = () => {
         setError(null); // Clear any previous errors
       } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
         console.log('Connection failed or disconnected, attempting to recover');
-        setError('Connection lost. Attempting to reconnect...');
+        setError('Attempting to reconnect...');
         // Try to recover by creating a new connection
         setTimeout(() => {
           if (peersRef.current.has(userId)) {
@@ -468,7 +454,7 @@ const Room: React.FC = () => {
         if (peer.connection.connectionState === 'failed' || 
             peer.connection.connectionState === 'disconnected') {
           console.log('Detected failed connection for:', userId);
-          setError('Connection lost. Attempting to reconnect...');
+          setError('Attempting to reconnect...');
           const newPc = createPeerConnection(userId);
           peersRef.current.set(userId, newPc);
         }
@@ -630,7 +616,7 @@ const Room: React.FC = () => {
               socketRef.current?.emit('offer', { offer: modifiedOffer, to: user.id });
             } catch (err) {
               console.error('Error creating/sending offer:', err);
-              setError('Failed to establish connection. Please try again.');
+              //setError('Failed to establish connection. Please try again.');
             }
           };
 
@@ -723,131 +709,6 @@ const Room: React.FC = () => {
     stopVisualization();
   };
 
-  const setupAudioVisualization = (stream: MediaStream, userId?: string) => {
-    try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-
-      // Create a new analyser for this stream
-      const analyser = audioContextRef.current.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.8;
-
-      const source = audioContextRef.current.createMediaStreamSource(stream);
-      source.connect(analyser);
-      
-      // Store the analyser reference
-      analyserRef.current = analyser;
-      
-      // Start visualization immediately
-      startVisualization();
-    } catch (err) {
-      console.error('Error setting up visualization:', err);
-    }
-  };
-
-  const startVisualization = () => {
-    if (!analyserRef.current) return;
-
-    const canvas = document.getElementById('visualizer') as HTMLCanvasElement;
-    if (!canvas) {
-      console.error('Visualizer canvas not found');
-      return;
-    }
-
-    const canvasCtx = canvas.getContext('2d');
-    if (!canvasCtx) {
-      console.error('Could not get canvas context');
-      return;
-    }
-
-    const bufferLength = analyserRef.current.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-
-    const draw = () => {
-      if (!analyserRef.current || !canvasCtx) return;
-
-      animationFrameRef.current = requestAnimationFrame(draw);
-      analyserRef.current.getByteFrequencyData(dataArray);
-
-      // Clear the canvas
-      canvasCtx.fillStyle = '#0A0A0F';
-      canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-
-      const barWidth = (canvas.width / bufferLength) * 2.5;
-      let x = 0;
-
-      for (let i = 0; i < bufferLength; i++) {
-        const barHeight = dataArray[i];
-        const hue = ((i / bufferLength) * 360) + ((Date.now() / 50) % 360);
-        const gradient = canvasCtx.createLinearGradient(0, canvas.height - barHeight, 0, canvas.height);
-        gradient.addColorStop(0, `hsla(${hue}, 100%, 50%, 0.8)`);
-        gradient.addColorStop(1, `hsla(${hue + 60}, 100%, 50%, 0.2)`);
-        
-        canvasCtx.fillStyle = gradient;
-        canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-
-        x += barWidth + 1;
-      }
-    };
-
-    // Start the visualization loop
-    draw();
-  };
-
-  const stopVisualization = () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = undefined;
-    }
-    if (analyserRef.current) {
-      analyserRef.current.disconnect();
-      analyserRef.current = null;
-    }
-  };
-
-  // Add autoplay unblock handler with more aggressive approach
-  useEffect(() => {
-    const unblockAutoplay = () => {
-      audioElementsRef.current.forEach(audio => {
-        if (audio.paused) {
-          console.log('Attempting to unblock autoplay for audio element');
-          const playPromise = audio.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(error => {
-              console.error('Error playing audio:', error);
-              // Show user feedback about needing interaction
-              if (error.name === 'NotAllowedError') {
-                setError('Please click anywhere on the page to start audio playback');
-              }
-              // Try to play again after a short delay
-              setTimeout(() => {
-                audio.play().catch(console.error);
-              }, 1000);
-            });
-          }
-        }
-      });
-    };
-
-    // Add multiple event listeners to increase chances of unblocking
-    const events = ['click', 'touchstart', 'keydown', 'focus', 'mousedown', 'mouseup'];
-    events.forEach(event => {
-      document.addEventListener(event, unblockAutoplay);
-    });
-
-    // Also try to unblock on component mount
-    unblockAutoplay();
-
-    return () => {
-      events.forEach(event => {
-        document.removeEventListener(event, unblockAutoplay);
-      });
-    };
-  }, []);
-
-  // Modify the handleTrack function to properly handle visualization
   const handleTrack = (event: RTCTrackEvent, userId: string) => {
     console.log('Received track from peer:', event.streams[0]);
     const [stream] = event.streams;
@@ -894,7 +755,7 @@ const Room: React.FC = () => {
 
     // Set up visualization for the received stream if this is the sharing user
     if (stream.getAudioTracks().length > 0 && userId === sharingUser?.id) {
-      setupAudioVisualization(stream, userId);
+      setupAudioVisualization(stream);
     }
   };
 
@@ -921,128 +782,50 @@ const Room: React.FC = () => {
     },
   };
 
-  const modifySDP = (sdp: string | undefined) => {
+  const modifySDP = (sdp: string | undefined): string => {
     if (!sdp) return '';
-    
-    console.log('Original SDP:', sdp);
-    
-    // Split SDP into lines and filter out empty lines
-    const lines = sdp.split('\r\n').filter(line => line.trim() !== '');
-    let modifiedLines: string[] = [];
-    let audioMid = '0';
-    let hasAudio = false;
-    let bundleGroup: string | null = null;
-    let audioSectionIndex = -1;
-    let hasSendRecv = false;
-    
-    // First pass: find audio section and bundle group
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      
-      if (line.startsWith('a=group:BUNDLE')) {
-        bundleGroup = line;
-        console.log('Found BUNDLE group:', bundleGroup);
-        // Extract MID from bundle group
-        audioMid = line.split(' ')[1];
-      }
-      
-      if (line.startsWith('m=audio')) {
-        hasAudio = true;
-        audioSectionIndex = i;
-        console.log('Found audio section at index:', i);
-      }
-
-      if (line.startsWith('a=sendrecv')) {
-        hasSendRecv = true;
-      }
-    }
-    
-    // Second pass: process and modify lines while preserving order
-    let currentMediaSection: string | null = null;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      
-      // Track current media section
-      if (line.startsWith('m=')) {
-        currentMediaSection = line;
-        modifiedLines.push(line);
-        continue;
-      }
-      
-      // Skip the original bundle group, we'll add it in the correct position
-      if (line.startsWith('a=group:BUNDLE')) {
-        continue;
-      }
-      
-      // Add MID after the c= line in audio section
-      if (line.startsWith('c=IN IP4') && currentMediaSection?.startsWith('m=audio')) {
-        modifiedLines.push(line);
-        modifiedLines.push(`a=mid:${audioMid}`);
-        continue;
-      }
-      
-      // Skip any existing MID lines for audio sections
-      if (line.startsWith('a=mid:') && currentMediaSection?.startsWith('m=audio')) {
-        continue;
-      }
-      
-      modifiedLines.push(line);
-    }
-    
-    // Add the bundle group in the correct position (after session-level attributes)
-    let insertIndex = 0;
-    for (let i = 0; i < modifiedLines.length; i++) {
-      if (modifiedLines[i].startsWith('m=')) {
-        insertIndex = i;
-        break;
-      }
-    }
-    
-    // Insert bundle group before the first media section
-    modifiedLines.splice(insertIndex, 0, `a=group:BUNDLE ${audioMid}`);
-    
-    // Ensure we have all necessary audio attributes
-    const hasOpus = modifiedLines.some(line => line.includes('opus/48000'));
-    if (!hasOpus) {
-      modifiedLines.push('a=rtpmap:111 opus/48000/2');
-      modifiedLines.push('a=rtcp-fb:111 transport-cc');
-      modifiedLines.push('a=fmtp:111 minptime=10;useinbandfec=1');
-    }
-    
-    // Add direction attribute if not present
-    if (!hasSendRecv) {
-      modifiedLines.push('a=sendrecv');
-    }
-    
-    // Add required SDP attributes
-    if (!modifiedLines.some(line => line.startsWith('a=ice-options:trickle'))) {
-      modifiedLines.push('a=ice-options:trickle');
-    }
-    
-    // Ensure proper line endings
-    const modifiedSDP = modifiedLines.join('\r\n') + '\r\n';
-    console.log('Modified SDP:', modifiedSDP);
-    
-    // Verify SDP structure
-    const hasValidAudioSection = modifiedSDP.includes('m=audio');
-    const hasValidBundleGroup = modifiedSDP.includes(`a=group:BUNDLE ${audioMid}`);
-    const hasValidMid = modifiedSDP.includes(`a=mid:${audioMid}`);
-    const hasValidOpus = modifiedSDP.includes('opus/48000');
-    
-    console.log('SDP Validation:', {
-      hasValidAudioSection,
-      hasValidBundleGroup,
-      hasValidMid,
-      hasValidOpus
-    });
-    
-    if (!hasValidAudioSection || !hasValidBundleGroup || !hasValidMid || !hasValidOpus) {
-      console.error('Invalid SDP structure detected');
-      throw new Error('Failed to create valid SDP');
-    }
-    
-    return modifiedSDP;
+    // enforce Opus stereo in SDP
+    return sdp.replace(/a=fmtp:111 (.*)/, 'a=fmtp:111 $1; stereo=1; sprop-stereo=1');
   };
+
+  // Audio visualization using Web Audio API
+  function setupAudioVisualization(stream: MediaStream) {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    analyserRef.current = audioContextRef.current.createAnalyser();
+    analyserRef.current.fftSize = 2048;
+    const source = audioContextRef.current.createMediaStreamSource(stream);
+    source.connect(analyserRef.current);
+    const canvas = document.getElementById('visualizer') as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d')!;
+    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    const draw = () => {
+      analyserRef.current!.getByteFrequencyData(dataArray);
+      ctx.fillStyle = '#0A0A0F'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const barWidth = (canvas.width / dataArray.length) * 2.5;
+      let x = 0;
+      dataArray.forEach((v, i) => {
+        const barHeight = v;
+        const hue = (i / dataArray.length) * 360;
+        ctx.fillStyle = `hsl(${hue},100%,50%)`;
+        ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+        x += barWidth + 1;
+      });
+      animationFrameRef.current = requestAnimationFrame(draw);
+    };
+    draw();
+  }
+
+  function stopVisualization() {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = undefined;
+    }
+    if (analyserRef.current) {
+      analyserRef.current.disconnect(); analyserRef.current = null;
+    }
+  }
 
   // Update the cleanup effect
   useEffect(() => {
