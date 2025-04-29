@@ -64,11 +64,52 @@ const Room: React.FC = () => {
     // Don't allow voting on your own stream
     if (isSharing) return;
     
+    console.log('Sending vote:', { targetUserId: sharingUser.id, voteType });
+    
     // Emit vote event to server
     socketRef.current.emit('vote', {
       roomId,
       targetUserId: sharingUser.id,
       voteType
+    });
+    
+    // Optimistically update the UI
+    // This ensures the user sees immediate feedback even if there's network latency
+    setUsers(prevUsers => {
+      return prevUsers.map(user => {
+        if (user.id === sharingUser.id) {
+          const currentUpvotes = user.upvotes || 0;
+          const currentDownvotes = user.downvotes || 0;
+          
+          if (voteType === 'up') {
+            // If switching from downvote, decrement downvotes
+            const newDownvotes = hasVoted === 'down' ? Math.max(0, currentDownvotes - 1) : currentDownvotes;
+            return { ...user, upvotes: currentUpvotes + 1, downvotes: newDownvotes };
+          } else {
+            // If switching from upvote, decrement upvotes
+            const newUpvotes = hasVoted === 'up' ? Math.max(0, currentUpvotes - 1) : currentUpvotes;
+            return { ...user, downvotes: currentDownvotes + 1, upvotes: newUpvotes };
+          }
+        }
+        return user;
+      });
+    });
+    
+    // Also update sharingUser if it's the same one
+    setSharingUser(prev => {
+      if (prev && prev.id === sharingUser.id) {
+        const currentUpvotes = prev.upvotes || 0;
+        const currentDownvotes = prev.downvotes || 0;
+        
+        if (voteType === 'up') {
+          const newDownvotes = hasVoted === 'down' ? Math.max(0, currentDownvotes - 1) : currentDownvotes;
+          return { ...prev, upvotes: currentUpvotes + 1, downvotes: newDownvotes };
+        } else {
+          const newUpvotes = hasVoted === 'up' ? Math.max(0, currentUpvotes - 1) : currentUpvotes;
+          return { ...prev, downvotes: currentDownvotes + 1, upvotes: newUpvotes };
+        }
+      }
+      return prev;
     });
     
     // Update local state
@@ -121,6 +162,8 @@ const Room: React.FC = () => {
 
     // Handle vote updates from other users
     socketRef.current.on('vote-update', ({ userId, upvotes, downvotes }) => {
+      console.log('Vote update received:', { userId, upvotes, downvotes });
+      
       setUsers(prevUsers => {
         return prevUsers.map(user => {
           if (user.id === userId) {
@@ -1067,7 +1110,7 @@ const Room: React.FC = () => {
                             animate={hasVoted === 'up' ? { scale: [1, 1.2, 1] } : {}}
                             transition={{ duration: 0.3 }}
                           >
-                            <path d="M12 4.435c-1.989-5.399-12-4.597-12 3.568 0 4.068 3.06 9.481 12 14.997 8.94-5.516 12-10.929 12-14.997 0-8.118-10-8.999-12-3.568z" />
+                            <path d="M12 3l8 8h-6v10h-4v-10h-6l8-8z" />
                           </motion.svg>
                           <span className="ml-1 font-medium">{sharingUser.upvotes || 0}</span>
                         </motion.button>
@@ -1090,7 +1133,7 @@ const Room: React.FC = () => {
                             animate={hasVoted === 'down' ? { scale: [1, 1.2, 1] } : {}}
                             transition={{ duration: 0.3 }}
                           >
-                            <path d="M12 9.229c.234-1.12 1.547-6.229 5.382-6.229 2.22 0 4.618 1.551 4.618 5.003 0 3.907-3.627 8.47-10 12.629-6.373-4.159-10-8.722-10-12.629 0-3.484 2.369-5.005 4.577-5.005 3.923 0 5.145 5.126 5.423 6.231zm-12-1.226c0 4.068 3.06 9.481 12 14.997 8.94-5.516 12-10.929 12-14.997 0-7.962-9.648-9.028-12-3.737-2.338-5.262-12-4.27-12 3.737z" />
+                            <path d="M12 21l-8-8h6v-10h4v10h6l-8 8z" />
                           </motion.svg>
                           <span className="ml-1 font-medium">{sharingUser.downvotes || 0}</span>
                         </motion.button>
@@ -1147,18 +1190,49 @@ const Room: React.FC = () => {
                 </>
               )}
 
-              {isSharing && (
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-6 py-3 rounded-lg shadow-lg text-lg font-semibold bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transition-all duration-300 flex items-center justify-center space-x-2"
-                  onClick={stopSharing}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
-                  </svg>
-                  <span>Stop Sharing</span>
-                </motion.button>
+              {isSharing && sharingUser && (
+                <div className="space-y-4">
+                  <div className="text-center p-4 bg-purple-500/30 border border-purple-500/50 rounded-lg w-full backdrop-blur-sm shadow-lg">
+                    <div className="flex flex-col md:flex-row justify-between items-center">
+                      <div>
+                        <span className="font-medium text-white">You are sharing audio</span>
+                      </div>
+                      
+                      {/* Show vote counts to the sharer */}
+                      <div className="flex items-center mt-3 md:mt-0 space-x-6">
+                        <div className="flex items-center">
+                          <div className="p-2 rounded-full flex items-center justify-center transition-all duration-300 text-green-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M12 3l8 8h-6v10h-4v-10h-6l8-8z" />
+                            </svg>
+                            <span className="ml-1 font-medium">{sharingUser.upvotes || 0}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <div className="p-2 rounded-full flex items-center justify-center transition-all duration-300 text-red-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M12 21l-8-8h6v-10h4v10h6l-8 8z" />
+                            </svg>
+                            <span className="ml-1 font-medium">{sharingUser.downvotes || 0}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="px-6 py-3 rounded-lg shadow-lg text-lg font-semibold bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transition-all duration-300 flex items-center justify-center space-x-2"
+                    onClick={stopSharing}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+                    </svg>
+                    <span>Stop Sharing</span>
+                  </motion.button>
+                </div>
               )}
 
               {/* Inline error UI removed; notifications shown via toast */}
