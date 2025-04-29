@@ -1060,7 +1060,6 @@ const Room: React.FC = () => {
                   width="800"
                   height="200"
                 />
-                <div className="absolute bottom-2 right-2 text-xs text-purple-300/50 font-mono">Audio Visualizer</div>
               </div>
             </div>
           </div>
