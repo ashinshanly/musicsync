@@ -193,6 +193,9 @@ const Room: React.FC = () => {
             audioElement = new Audio();
             audioElement.autoplay = true;
             (audioElement as any).playsInline = true;
+            audioElement.setAttribute('playsinline', '');
+            audioElement.style.display = 'none';
+            document.body.appendChild(audioElement);
             audioElement.id = `audio-${from}`;
             audioElementsRef.current.set(from, audioElement);
             
@@ -291,9 +294,6 @@ const Room: React.FC = () => {
             offerToReceiveAudio: true,
             offerToReceiveVideo: false
           });
-          if (pc.connection.signalingState !== 'stable') {
-            await pc.connection.setLocalDescription({ type: 'rollback' });
-          }
           await pc.connection.setLocalDescription(answer);
           console.log('Answer created successfully');
           
@@ -334,6 +334,20 @@ const Room: React.FC = () => {
             
             await pc.connection.setRemoteDescription(modifiedAnswer);
             console.log('Successfully set remote description from:', from);
+            
+            // Drain any ICE candidates queued before answer
+            const answerQueue = iceCandidateQueuesRef.current.get(from);
+            if (answerQueue && answerQueue.length) {
+              console.log(`Draining ${answerQueue.length} queued ICE candidates for ${from}`);
+              for (const cand of answerQueue) {
+                try {
+                  await pc.connection.addIceCandidate(new RTCIceCandidate(cand));
+                } catch (e) {
+                  console.error('Error draining ICE candidate:', e);
+                }
+              }
+              iceCandidateQueuesRef.current.delete(from);
+            }
           } catch (err) {
             console.error('Error setting remote description from answer:', err);
             throw new Error('Failed to process answer from peer');
@@ -353,7 +367,7 @@ const Room: React.FC = () => {
         console.log('Received ICE candidate from:', from);
         const pc = peersRef.current.get(from);
         
-        if (!pc) {
+        if (!pc || !pc.connection.remoteDescription) {
           console.warn('Peer connection not ready for ICE candidate from:', from, '- queueing');
           if (candidate) {
             const queue = iceCandidateQueuesRef.current.get(from) || [];
@@ -653,8 +667,11 @@ const Room: React.FC = () => {
   };
 
   const handleTrack = (event: RTCTrackEvent, userId: string) => {
-    console.log('Received track from peer:', event.streams[0]);
-    const [stream] = event.streams;
+    // Determine stream: use provided streams or fallback to new MediaStream from the received track
+    const stream = (event.streams && event.streams.length > 0)
+      ? event.streams[0]
+      : new MediaStream([event.track]);
+    console.log('Received track from peer:', stream);
     
     // Create or get existing audio element for this user
     let audioElement = audioElementsRef.current.get(userId);
@@ -662,6 +679,9 @@ const Room: React.FC = () => {
       audioElement = new Audio();
       audioElement.autoplay = true;
       (audioElement as any).playsInline = true;
+      audioElement.setAttribute('playsinline', '');
+      audioElement.style.display = 'none';
+      document.body.appendChild(audioElement);
       audioElement.id = `audio-${userId}`;
       audioElementsRef.current.set(userId, audioElement);
       
