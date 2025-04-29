@@ -438,7 +438,7 @@ const Room: React.FC = () => {
     });
 
     // Add recvonly audio transceiver to ensure remote audio on Safari/mobile
-    if ('addTransceiver' in pc) {
+    if (!localStreamRef.current && 'addTransceiver' in pc) {
       try {
         pc.addTransceiver('audio', { direction: 'recvonly' });
       } catch (e) {
@@ -450,7 +450,7 @@ const Room: React.FC = () => {
     pc.oniceconnectionstatechange = () => {
       console.log(`ICE connection state with ${userId}:`, pc.iceConnectionState);
       if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-        console.log('Attempting to restart ICE for peer:', userId);
+        console.log('Restarting ICE for peer:', userId);
         pc.restartIce();
       }
     };
@@ -470,20 +470,6 @@ const Room: React.FC = () => {
 
     pc.onconnectionstatechange = () => {
       console.log(`Connection state with ${userId}:`, pc.connectionState);
-      if (pc.connectionState === 'connected') {
-        console.log('Successfully connected to peer:', userId);
-        //setError(null); // Clear any previous errors
-      } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        console.log('Connection failed or disconnected, attempting to recover');
-        toast.error('Attempting to reconnect...');
-        // Try to recover by creating a new connection
-        setTimeout(() => {
-          if (peersRef.current.has(userId)) {
-            const newPc = createPeerConnection(userId);
-            peersRef.current.set(userId, newPc);
-          }
-        }, 2000);
-      }
     };
 
     // Add negotiation needed handler
@@ -526,12 +512,9 @@ const Room: React.FC = () => {
   useEffect(() => {
     const checkConnectionStatus = () => {
       peersRef.current.forEach((peer, userId) => {
-        if (peer.connection.connectionState === 'failed' || 
-            peer.connection.connectionState === 'disconnected') {
-          console.log('Detected failed connection for:', userId);
-          toast.error('Attempting to reconnect...');
-          const newPc = createPeerConnection(userId);
-          peersRef.current.set(userId, newPc);
+        if (peer.connection.connectionState === 'failed' || peer.connection.connectionState === 'disconnected') {
+          console.log('Restarting ICE for peer:', userId);
+          peer.connection.restartIce();
         }
       });
     };
@@ -704,18 +687,6 @@ const Room: React.FC = () => {
           // Add connection state monitoring
           pc.connection.onconnectionstatechange = () => {
             console.log(`Connection state with ${user.id}:`, pc.connection.connectionState);
-            if (pc.connection.connectionState === 'connected') {
-              console.log('Successfully connected to peer:', user.id);
-              // Verify audio track is still enabled
-              const audioTrack = stream.getAudioTracks()[0];
-              if (audioTrack) {
-                console.log('Verifying audio track after connection:', {
-                  enabled: audioTrack.enabled,
-                  readyState: audioTrack.readyState
-                });
-                audioTrack.enabled = true;
-              }
-            }
           };
         }
       }
