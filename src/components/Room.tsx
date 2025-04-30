@@ -183,10 +183,33 @@ const Room: React.FC = () => {
       setSharingUser(prev => {
         if (prev && prev.id === userId) {
           console.log('Updating sharing user with new vote counts:', { upvotes, downvotes });
+          // It's important to preserve all properties while only updating the vote counts
           return { ...prev, upvotes, downvotes };
         }
         return prev;
       });
+      
+      // Make sure the peer connection is still active and tracks are flowing
+      const sharingPeerConn = peersRef.current.get(userId);
+      if (sharingPeerConn && sharingPeerConn.connection.connectionState !== 'connected') {
+        console.log('Sharing user connection is not in connected state, attempting to re-establish');
+        // Don't recreate the connection if it's just connecting/checking, only if it's failed or closed
+        if (['failed', 'closed', 'disconnected'].includes(sharingPeerConn.connection.connectionState)) {
+          console.log('Attempting to re-establish peer connection after vote update');
+          // Create a new peer connection
+          const newPc = createPeerConnection(userId);
+          // Send an offer to re-establish connection
+          newPc.connection.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: false
+          }).then(offer => {
+            newPc.connection.setLocalDescription(offer);
+            socketRef.current?.emit('offer', { offer, to: userId });
+          }).catch(error => {
+            console.error('Failed to create offer after vote update:', error);
+          });
+        }
+      }
     });
 
     socketRef.current.on('user-started-sharing', async ({ userId, username }) => {
@@ -800,21 +823,31 @@ const Room: React.FC = () => {
     // Remove beforeunload listener
     window.removeEventListener('beforeunload', stopSharing);
 
-    // Stop all tracks
-    localStreamRef.current?.getTracks().forEach(track => track.stop());
+    // Stop all tracks in local stream
+    localStreamRef.current?.getTracks().forEach(track => {
+      console.log('Stopping track:', track.kind, track.label);
+      track.stop();
+    });
     
-    // Close all peer connections
-    peersRef.current.forEach(peer => {
-      peer.connection.close();
-    });
-    peersRef.current.clear();
-
-    // Clean up audio elements
-    audioElementsRef.current.forEach(audio => {
-      audio.srcObject = null;
-      audio.remove();
-    });
-    audioElementsRef.current.clear();
+    // Reset sharing state without clearing ALL peer connections
+    // This allows listeners to keep their peer connections active even if sharing stops
+    if (isSharing) {
+      // Only close connections if we're stopping our own sharing
+      // Otherwise, connections should be kept alive for future shares
+      peersRef.current.forEach(peer => {
+        // We're preserving the peer connection objects to avoid recreating them
+        // but we'll close the RTCPeerConnection itself if we're the sharer
+        peer.connection.close();
+      });
+      peersRef.current.clear();
+      
+      // Clean up audio elements
+      audioElementsRef.current.forEach(audio => {
+        audio.srcObject = null;
+        audio.remove();
+      });
+      audioElementsRef.current.clear();
+    }
 
     setIsSharing(false);
     socketRef.current?.emit('stop-sharing');
@@ -822,10 +855,19 @@ const Room: React.FC = () => {
   };
 
   const handleTrack = (event: RTCTrackEvent, userId: string) => {
+    console.log('Handling incoming track from user:', userId, 'Track kind:', event.track.kind);
+    
     // Determine stream: use provided streams or fallback to new MediaStream from the received track
     const stream = (event.streams && event.streams.length > 0)
       ? event.streams[0]
       : new MediaStream([event.track]);
+      
+    // Log stream info for debugging
+    console.log('Stream details:', {
+      id: stream.id,
+      active: stream.active,
+      trackCount: stream.getTracks().length
+    });
     console.log('Received track from peer:', stream, 'with audio tracks:', stream.getAudioTracks().length);
     
     if (stream.getAudioTracks().length === 0) {
