@@ -71,7 +71,7 @@ The application will be available at `http://localhost:3000`.
    - Select the audio source from your device
    - Your audio will be streamed to all room participants
 
-## Technical Notes
+## Notes
 
 - Audio sharing requires browser permission to capture system audio
 - For best performance, use Chrome or Edge browsers
