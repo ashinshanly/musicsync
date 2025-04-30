@@ -106,10 +106,10 @@ New features I'm exploring:
 - **AI-powered Mood Detection** — Get recommendations based on group energy
 - **Karaoke Quiz Battles** — Test your music knowledge with friends
 
-## 🤝 Contributing
+## Contributing
 
 Have a feature idea? Found a bug? Please open an issue or submit a pull request.
 
-## 📜 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
