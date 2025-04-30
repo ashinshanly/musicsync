@@ -19,14 +19,18 @@ MusicSync transforms how we share music in the digital age. It's a borderless vi
 
 With MusicSync, those solo listening sessions become vibrant social gatherings, where reactions, votes, and energy flow in real-time. No more "you had to be there" moments—now everyone can be there.
 
-## Key Features
+## Why MusicSync?
 
-- **Instant Audio Sharing** — Stream system audio or microphone with a single click
-- **Stunning Visualizer** — See music come alive with a responsive audio visualizer
-- **Real-Time Reactions** — Vote on what's playing and see crowd feedback instantly
-- **Zero Friction** — No accounts or downloads needed—just create a room and share the link
-- **Device Agnostic** — Works across platforms and browsers (desktop optimal for sharing)
+Unlike Spotify Jam, MusicSync offers:
+
+- **True Real-Time Audio** — Share any audio source in real-time, not just Spotify tracks
+- **No Platform Lock-in** — Stream from any music service or local files
 - **Privacy First** — Peer-to-peer architecture means your audio doesn't pass through my server
+- **Zero Friction** — No accounts, no downloads, no subscriptions—just create a room and share
+- **Interactive Features** — Vote on tracks, participate in music quizzes, and more
+- **Beautiful Visualizer** — See music come alive with a responsive audio visualizer
+- **Cross-Platform** — Works across devices and browsers (desktop optimal for sharing)
+- **Open Source** — Built with transparency and community in mind
 
 ## Prerequisites
 
@@ -68,7 +72,7 @@ The application will be available at `http://localhost:3000`.
 
 3. **Sharing Audio**
    - In a room, click "Share Audio"
-   - Select the audio source from your device
+   - Select the audio source (System audio or microphone)
    - Your audio will be streamed to all room participants
 
 ## Notes
