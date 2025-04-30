@@ -620,7 +620,7 @@ const Room: React.FC = () => {
           break;
         case 'disconnected':
           console.log('ICE disconnected - attempting recovery');
-          toast.warning('Connection interrupted - trying to recover');
+          toast.info('Connection interrupted - trying to recover');
           pc.restartIce();
           break;
       }
