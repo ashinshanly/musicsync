@@ -31,7 +31,7 @@ const Home: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="backdrop-blur-sm bg-gray-800/70 p-8 md:p-10 rounded-2xl shadow-2xl border border-gray-700/50"
+          className="bg-black-glass backdrop-blur-xl p-8 md:p-10 rounded-2xl shadow-2xl border border-white-glass"
         >
           <div className="flex flex-col items-center mb-10">
             <motion.div
@@ -71,7 +71,7 @@ const Home: React.FC = () => {
               initial={{ x: -30, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               transition={{ delay: 0.5, duration: 0.5 }}
-              className="backdrop-blur-sm bg-gray-800/40 p-6 rounded-xl border border-purple-500/20 shadow-lg"
+              className="bg-black-glass backdrop-blur-xl p-6 rounded-xl border border-white-glass shadow-lg"
             >
               <h2 className="text-2xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -48,6 +48,16 @@ module.exports = {
       transitionDuration: {
         '2000': '2000ms',
       },
+      backdropBlur: {
+        'xl': '24px',
+      },
+      backgroundColor: {
+        'black-glass': 'rgba(0, 0, 0, 0.2)',
+        'white-glass': 'rgba(255, 255, 255, 0.1)',
+      },
+      borderColor: {
+        'white-glass': 'rgba(255, 255, 255, 0.2)',
+      }
     },
   },
   plugins: [],

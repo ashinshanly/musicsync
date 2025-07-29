@@ -161,6 +161,20 @@ const Room: React.FC = () => {
       if (wasSharing) {
         setSharingUser(null);
         stopVisualization();
+        // Clean up peer connection and audio element for the user who left
+        const peer = peersRef.current.get(userId);
+        if (peer) {
+          console.log(`Closing peer connection for user ${userId} who left.`);
+          peer.connection.close();
+          peersRef.current.delete(userId);
+        }
+        const audioElement = audioElementsRef.current.get(userId);
+        if (audioElement) {
+          console.log(`Removing audio element for user ${userId}.`);
+          audioElement.srcObject = null;
+          audioElement.remove();
+          audioElementsRef.current.delete(userId);
+        }
       }
     });
 
@@ -213,11 +227,39 @@ const Room: React.FC = () => {
     });
 
     socketRef.current.on('user-started-sharing', async ({ userId, username }) => {
-      // Skip redundant negotiation if already connected
-      if (peersRef.current.has(userId)) {
-        console.log('Already connected to sharing user:', userId, '- skipping negotiation');
+      // If we are the one sharing, do nothing.
+      if (userId === socketRef.current?.id) {
         return;
       }
+
+      // Check for an existing peer connection and its state.
+      const existingPeer = peersRef.current.get(userId);
+      if (existingPeer) {
+        const state = existingPeer.connection.connectionState;
+        console.log(`Existing peer connection found for ${userId} with state: ${state}`);
+        
+        // If connection is already stable, do nothing.
+        if (state === 'connected' || state === 'connecting') {
+          console.log('Connection is already stable, skipping negotiation.');
+          // Still update the UI state, just in case.
+          setUsers(prevUsers => {
+            const updatedUsers = prevUsers.map(user => ({
+              ...user,
+              isSharing: user.id === userId,
+            }));
+            const sharingUser = updatedUsers.find(user => user.id === userId);
+            setSharingUser(sharingUser || null);
+            return updatedUsers;
+          });
+          return;
+        }
+        
+        // If connection is unstable or closed, clean it up before creating a new one.
+        console.log('Connection is not stable, cleaning up before creating a new one.');
+        existingPeer.connection.close();
+        peersRef.current.delete(userId);
+      }
+
       setUsers(prevUsers => {
         const updatedUsers = prevUsers.map(user => ({
           ...user,
@@ -233,38 +275,35 @@ const Room: React.FC = () => {
       // Reset vote state when a new user starts sharing
       setHasVoted(null);
 
-      // If this is a new user joining a room with an active sharing session,
-      // initiate the WebRTC connection only if not already connected
-      if (userId !== socketRef.current?.id && !peersRef.current.has(userId)) {
-        try {
-          console.log('Setting up connection with sharing user:', userId);
-          const pc = createPeerConnection(userId);
-          // Create and send offer to the sharing user
-          const offer = await pc.connection.createOffer({
-            offerToReceiveAudio: true,
-            offerToReceiveVideo: false
-          });
-          await pc.connection.setLocalDescription(offer);
-          console.log('Sending offer to sharing user:', userId);
-          socketRef.current?.emit('offer', { offer, to: userId });
-        } catch (error) {
-          const prev = negotiationAttemptsRef.current.get(userId) || 0;
-          if (prev < 2) {
-            negotiationAttemptsRef.current.set(userId, prev + 1);
-            setTimeout(async () => {
-              try {
-                console.log('Retrying connection with sharing user:', userId);
-                const pcRetry = createPeerConnection(userId);
-                const offerRetry = await pcRetry.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
-                await pcRetry.connection.setLocalDescription(offerRetry);
-                socketRef.current?.emit('offer', { offer: offerRetry, to: userId });
-              } catch (retryErr) {
-                console.error('Retry failed for:', userId, retryErr);
-              }
-            }, 2000);
-          } else {
-            toast.error('Failed to connect to sharing user. Please try joining the room again.');
-          }
+      // Initiate the WebRTC connection.
+      try {
+        console.log('Setting up connection with sharing user:', userId);
+        const pc = createPeerConnection(userId);
+        // Create and send offer to the sharing user
+        const offer = await pc.connection.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: false
+        });
+        await pc.connection.setLocalDescription(offer);
+        console.log('Sending offer to sharing user:', userId);
+        socketRef.current?.emit('offer', { offer, to: userId });
+      } catch (error) {
+        const prev = negotiationAttemptsRef.current.get(userId) || 0;
+        if (prev < 2) {
+          negotiationAttemptsRef.current.set(userId, prev + 1);
+          setTimeout(async () => {
+            try {
+              console.log('Retrying connection with sharing user:', userId);
+              const pcRetry = createPeerConnection(userId);
+              const offerRetry = await pcRetry.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
+              await pcRetry.connection.setLocalDescription(offerRetry);
+              socketRef.current?.emit('offer', { offer: offerRetry, to: userId });
+            } catch (retryErr) {
+              console.error('Retry failed for:', userId, retryErr);
+            }
+          }, 2000);
+        } else {
+          toast.error('Failed to connect to sharing user. Please try joining the room again.');
         }
       }
     });
@@ -281,6 +320,21 @@ const Room: React.FC = () => {
       // Reset vote state when sharing stops
       setHasVoted(null);
       stopVisualization();
+
+      // Clean up peer connection and audio element for the user who stopped sharing
+      const peer = peersRef.current.get(userId);
+      if (peer) {
+        console.log(`Closing peer connection for user ${userId} who stopped sharing.`);
+        peer.connection.close();
+        peersRef.current.delete(userId);
+      }
+      const audioElement = audioElementsRef.current.get(userId);
+      if (audioElement) {
+        console.log(`Removing audio element for user ${userId}.`);
+        audioElement.srcObject = null;
+        audioElement.remove();
+        audioElementsRef.current.delete(userId);
+      }
     });
 
     socketRef.current.on('offer', async ({ offer, from }) => {
@@ -385,7 +439,7 @@ const Room: React.FC = () => {
             console.log('Processing queued ICE candidates:', queue.length);
             for (const candidate of queue) {
               try {
-                await pc.connection.addIceCandidate(candidate);
+                await pc.connection.addIceCandidate(new RTCIceCandidate(candidate));
               } catch (err) {
                 console.error('Error adding queued ICE candidate:', err);
               }
@@ -1256,7 +1310,7 @@ const Room: React.FC = () => {
       exit="exit"
     >
       <Toaster position="top-right" />
-      <div className="max-w-6xl mx-auto backdrop-blur-sm bg-black/20 rounded-2xl p-4 md:p-6 shadow-2xl border border-purple-500/10">
+      <div className="max-w-6xl mx-auto bg-black-glass backdrop-blur-xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white-glass">
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-3">
             <Logo size={60} className="hidden md:block" />
@@ -1290,7 +1344,7 @@ const Room: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Audio Controls */}
-          <div className="lg:col-span-2 bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-xl p-6 shadow-xl border border-purple-500/10 transition-all duration-300 hover:border-purple-500/30">
+          <div className="lg:col-span-2 bg-black-glass backdrop-blur-xl rounded-xl p-6 shadow-xl border border-white-glass transition-all duration-300 hover:border-purple-500/30">
             <div className="flex flex-col items-center space-y-6">
               {sharingUser && !isSharing && (
                 <div className="text-center p-4 bg-purple-500/20 border border-purple-500 rounded-lg w-full backdrop-blur-sm shadow-lg mb-4">
@@ -1487,7 +1541,10 @@ const Room: React.FC = () => {
           </div>
 
           {/* Users List - Always visible */}
-          <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-xl p-6 shadow-xl border border-blue-500/10 transition-all duration-300 hover:border-blue-500/30 h-fit">
+          <motion.div 
+            className="bg-black-glass backdrop-blur-xl rounded-xl p-6 shadow-xl border border-white-glass transition-all duration-300 hover:border-blue-500/30 h-fit"
+            variants={itemVariants}
+          >
             <h2 className="text-2xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
               Connected Users ({users.length})
             </h2>
@@ -1515,7 +1572,7 @@ const Room: React.FC = () => {
                 </motion.div>
               ))}
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     </motion.div>

@@ -113,7 +113,7 @@ const LiveRooms: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="mt-8 text-center p-6 backdrop-blur-sm bg-gray-800/40 rounded-xl border border-blue-500/10 shadow-lg">
+      <div className="mt-8 text-center p-6 bg-black-glass backdrop-blur-xl rounded-xl border border-white-glass shadow-lg">
         <div className="relative mx-auto w-16 h-16">
           <div className="absolute top-0 left-0 w-full h-full rounded-full border-4 border-t-blue-500 border-r-transparent border-b-purple-500 border-l-transparent animate-spin"></div>
           <div className="absolute top-2 left-2 w-12 h-12 rounded-full border-4 border-t-transparent border-r-pink-500 border-b-transparent border-l-purple-500 animate-spin animate-pulse" style={{ animationDirection: 'reverse' }}></div>
@@ -134,7 +134,7 @@ const LiveRooms: React.FC = () => {
 
   if (error) {
     return (
-      <div className="mt-8 text-center p-6 backdrop-blur-sm bg-gray-800/40 rounded-xl border border-red-500/20 shadow-lg">
+      <div className="mt-8 text-center p-6 bg-black-glass backdrop-blur-xl rounded-xl border border-red-500/20 shadow-lg">
         <div className="rounded-full bg-red-500/10 p-4 w-16 h-16 flex items-center justify-center mx-auto mb-4">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -165,10 +165,10 @@ const LiveRooms: React.FC = () => {
         Live Rooms
       </h2>
       {rooms.length === 0 ? (
-        <div className="backdrop-blur-sm bg-gray-800/40 p-6 rounded-xl border border-blue-500/10 shadow-lg text-center">
+        <div className="bg-black-glass backdrop-blur-xl p-6 rounded-xl border border-white-glass shadow-lg text-center">
           <div className="rounded-full bg-blue-500/10 p-4 w-16 h-16 flex items-center justify-center mx-auto mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2-2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
             </svg>
           </div>
           <p className="text-gray-300 font-medium">No active rooms found</p>
@@ -183,7 +183,7 @@ const LiveRooms: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               whileHover={{ y: -5, boxShadow: "0 10px 25px -5px rgba(138, 58, 185, 0.2)" }}
-              className="backdrop-blur-sm bg-gray-800/40 rounded-xl p-5 shadow-lg border border-gray-700/50 transition-all duration-300 hover:border-purple-500/30"
+              className="bg-black-glass backdrop-blur-xl rounded-xl p-5 shadow-lg border border-white-glass transition-all duration-300 hover:border-purple-500/30"
             >
               <div className="flex justify-between items-start mb-3">
                 <h3 className="text-xl font-semibold text-white flex items-center">

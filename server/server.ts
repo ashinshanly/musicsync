@@ -112,6 +112,7 @@ io.on('connection', (socket) => {
 
   // Handle start sharing
   socket.on('start-sharing', () => {
+    console.log(`User ${socket.id} started sharing`); // Added logging
     const room = findUserRoom(socket.id);
     if (room) {
       const user = room.users.find((u: any) => u.id === socket.id);
@@ -131,6 +132,7 @@ io.on('connection', (socket) => {
 
   // Handle stop sharing
   socket.on('stop-sharing', () => {
+    console.log(`User ${socket.id} stopped sharing`); // Added logging
     const room = findUserRoom(socket.id);
     if (room) {
       const user = room.users.find((u: any) => u.id === socket.id);
@@ -173,14 +175,10 @@ io.on('connection', (socket) => {
         }
       } else {
         updateRoomStatus(room);
-        if (wasSharing) {
-          const roomId = findRoomId(room);
-          if (roomId) {
-            socket.to(roomId).emit('user-stopped-sharing', { userId: socket.id });
-          }
-        }
         const roomId = findRoomId(room);
         if (roomId) {
+          // The 'user-left' event now handles all cleanup on the client-side
+          // if the user was sharing.
           socket.to(roomId).emit('user-left', {
             userId: socket.id,
             wasSharing,
@@ -193,14 +191,17 @@ io.on('connection', (socket) => {
 
   // Handle WebRTC signaling
   socket.on('offer', ({ offer, to }: { offer: any; to: string }) => {
+    console.log(`Offer from ${socket.id} to ${to}`); // Added logging
     socket.to(to).emit('offer', { offer, from: socket.id });
   });
 
   socket.on('answer', ({ answer, to }: { answer: any; to: string }) => {
+    console.log(`Answer from ${socket.id} to ${to}`); // Added logging
     socket.to(to).emit('answer', { answer, from: socket.id });
   });
 
   socket.on('ice-candidate', ({ candidate, to }: { candidate: any; to: string }) => {
+    console.log(`ICE candidate from ${socket.id} to ${to}`); // Added logging
     socket.to(to).emit('ice-candidate', { candidate, from: socket.id });
   });
 });
