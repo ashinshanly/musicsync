@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
+import UsernameModal from './UsernameModal'; // Import the new modal component
 
 interface Room {
   id: string;
@@ -21,6 +22,8 @@ const LiveRooms: React.FC = () => {
   const navigate = useNavigate();
   const socketRef = useRef<Socket | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<string>('Connecting...');
+  const [isModalOpen, setIsModalOpen] = useState(false); // State for modal visibility
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null); // State to store selected room ID
 
   useEffect(() => {
     console.log('Initializing socket connection to:', SOCKET_URL);
@@ -93,12 +96,17 @@ const LiveRooms: React.FC = () => {
   }, []);
 
   const handleJoinRoom = (roomId: string) => {
-    const username = localStorage.getItem('username');
-    if (!username) {
-      setError('Please enter your name before joining a room');
-      return;
+    setSelectedRoomId(roomId);
+    setIsModalOpen(true); // Open the modal instead of direct navigation
+  };
+
+  const handleUsernameSubmit = (username: string) => {
+    if (selectedRoomId) {
+      localStorage.setItem('username', username);
+      navigate(`/room/${selectedRoomId}`);
     }
-    navigate(`/room/${roomId}`);
+    setIsModalOpen(false);
+    setSelectedRoomId(null);
   };
 
   const handleRetry = () => {
@@ -145,7 +153,7 @@ const LiveRooms: React.FC = () => {
           whileHover={{ scale: 1.05, boxShadow: "0 10px 25px -5px rgba(239, 68, 68, 0.3)" }}
           whileTap={{ scale: 0.95 }}
           onClick={handleRetry}
-          className="px-6 py-3 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white rounded-lg transition-all duration-300 shadow-lg flex items-center justify-center mx-auto"
+          className="px-6 py-3 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white rounded-lg font-semibold transition-all duration-300 shadow-lg flex items-center justify-center mx-auto"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -222,8 +230,13 @@ const LiveRooms: React.FC = () => {
           ))}
         </div>
       )}
+      <UsernameModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleUsernameSubmit}
+      />
     </div>
   );
 };
 
-export default LiveRooms; 
+export default LiveRooms;
