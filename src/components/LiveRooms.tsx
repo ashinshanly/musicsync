@@ -175,8 +175,8 @@ const LiveRooms: React.FC = () => {
       {rooms.length === 0 ? (
         <div className="bg-black-glass backdrop-blur-xl p-6 rounded-xl border border-white-glass shadow-lg text-center">
           <div className="rounded-full bg-blue-500/10 p-4 w-16 h-16 flex items-center justify-center mx-auto mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 13.5h16.5m-16.5 0a2.25 2.25 0 002.25 2.25h12a2.25 2.25 0 002.25-2.25m-16.5 0V8.25m16.5 5.25V8.25m-16.5 0a2.25 2.25 0 01-2.25-2.25V6.75m2.25 1.5a2.25 2.25 0 012.25-2.25h7.5a2.25 2.25 0 012.25 2.25m-16.5 0V6.75m0 0A2.25 2.25 0 013.75 4.5h16.5a2.25 2.25 0 012.25 2.25v1.5m-4.5 0h-15" />
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 18.75a2.25 2.25 0 11-1.5-2.134V6.576a.75.75 0 01.57-.728l9-2.25a.75.75 0 01.93.728v10.198a2.25 2.25 0 11-1.5-2.134V6.62l-7.5 1.875v8.121a2.25 2.25 0 011.5 2.134z" />
             </svg>
           </div>
           <p className="text-gray-300 font-medium">No active rooms found</p>
