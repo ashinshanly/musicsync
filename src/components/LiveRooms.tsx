@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
-import UsernameModal from './UsernameModal'; // Import the new modal component
+import UsernameModal from './UsernameModal';
 
 interface Room {
   id: string;
@@ -175,8 +175,8 @@ const LiveRooms: React.FC = () => {
       {rooms.length === 0 ? (
         <div className="bg-black-glass backdrop-blur-xl p-6 rounded-xl border border-white-glass shadow-lg text-center">
           <div className="rounded-full bg-blue-500/10 p-4 w-16 h-16 flex items-center justify-center mx-auto mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2-2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 13.5h16.5m-16.5 0a2.25 2.25 0 002.25 2.25h12a2.25 2.25 0 002.25-2.25m-16.5 0V8.25m16.5 5.25V8.25m-16.5 0a2.25 2.25 0 01-2.25-2.25V6.75m2.25 1.5a2.25 2.25 0 012.25-2.25h7.5a2.25 2.25 0 012.25 2.25m-16.5 0V6.75m0 0A2.25 2.25 0 013.75 4.5h16.5a2.25 2.25 0 012.25 2.25v1.5m-4.5 0h-15" />
             </svg>
           </div>
           <p className="text-gray-300 font-medium">No active rooms found</p>
