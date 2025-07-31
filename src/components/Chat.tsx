@@ -29,6 +29,7 @@ const Chat: React.FC<ChatProps> = ({ isOpen, setIsOpen, messages, onSendMessage,
   }, [messages]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
+    console.log('Chat: handleFormSubmit triggered.');
     e.preventDefault();
     onSendMessage(newMessage);
     setNewMessage('');
