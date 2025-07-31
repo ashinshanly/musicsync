@@ -79,12 +79,10 @@ const Chat: React.FC<ChatProps> = ({ socket, roomId, username, isOpen, setIsOpen
 
   return (
     <div className={`chat-container ${isOpen ? 'open' : 'closed'}`}>
-      <div
-        className="chat-window"
-      >
-        <div className="chat-header">
+      <div className="chat-window">
+        <div className="chat-header" onClick={() => setIsOpen(!isOpen)}>
           <h3>Live Chat</h3>
-          <button onClick={() => setIsOpen(false)}>&times;</button>
+          <button>&times;</button>
         </div>
         <div className="chat-body" ref={chatBodyRef}>
           {messages.map((msg) => (
@@ -107,14 +105,6 @@ const Chat: React.FC<ChatProps> = ({ socket, roomId, username, isOpen, setIsOpen
           <button type="submit">Send</button>
         </form>
       </div>
-      {!isOpen && (
-        <button
-          className="chat-toggle-button"
-          onClick={() => setIsOpen(true)}
-        >
-          Chat
-        </button>
-      )}
     </div>
   );
 };

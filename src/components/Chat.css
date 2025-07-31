@@ -1,42 +1,43 @@
+
 .chat-container {
   position: fixed;
-  top: 0;
-  right: 0;
   bottom: 0;
-  width: 350px;
+  left: 0;
+  right: 0;
+  height: 300px;
   z-index: 1000;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse; /* To keep the toggle button at the top */
   transition: transform 0.3s ease-in-out;
 }
 
 .chat-container.closed {
-  transform: translateX(100%);
+  transform: translateY(calc(100% - 40px)); /* Show only the header */
 }
 
 .chat-window {
   width: 100%;
   height: 100%;
-  background-color: rgba(17, 17, 27, 0.85);
+  background-color: rgba(17, 17, 27, 0.9);
   backdrop-filter: blur(10px);
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
 }
 
 .chat-header {
-  padding: 1rem;
-  background-color: rgba(0, 0, 0, 0.2);
+  padding: 0.5rem 1rem;
+  background-color: rgba(0, 0, 0, 0.3);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
 }
 
 .chat-header h3 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: 600;
   color: #d1c4e9;
 }
@@ -60,6 +61,8 @@
   padding: 0.75rem 1rem;
   border-radius: 12px;
   max-width: 85%;
+  display: flex;
+  flex-direction: column;
 }
 
 .my-message {
@@ -82,6 +85,7 @@
   text-align: center;
   font-style: italic;
   font-size: 0.9rem;
+  align-self: center;
 }
 
 .message-username {
@@ -133,19 +137,5 @@
 }
 
 .chat-toggle-button {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background-color: #7c3aed;
-  color: #fff;
-  border: none;
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  z-index: 1001;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  display: none; /* No longer needed */
 }

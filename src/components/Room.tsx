@@ -133,48 +133,45 @@ const Room: React.FC = () => {
   
   useEffect(() => {
     // Initialize WebSocket connection
-    socketRef.current = io(SOCKET_URL);
+    const socket = io(SOCKET_URL);
+    socketRef.current = socket;
+
     let username = localStorage.getItem('username');
     if (!username) {
       username = generateUsername();
       localStorage.setItem('username', username);
     }
     
-    socketRef.current.emit('join-room', { roomId, username });
+    socket.emit('join-room', { roomId, username });
 
-    socketRef.current.on('user-joined', async ({ users: roomUsers }) => {
+    socket.on('user-joined', async ({ users: roomUsers }) => {
       setUsers(roomUsers);
-      // Update sharing user if someone is already sharing
       const currentlySharing = roomUsers.find((user: User) => user.isSharing);
       setSharingUser(currentlySharing || null);
-      // If someone is already sharing, initiate negotiation as a late joiner
-      if (currentlySharing && currentlySharing.id !== socketRef.current!.id) {
+      if (currentlySharing && currentlySharing.id !== socket.id) {
         try {
           const pc = createPeerConnection(currentlySharing.id);
           const offer = await pc.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
           await pc.connection.setLocalDescription(offer);
-          socketRef.current!.emit('offer', { offer, to: currentlySharing.id });
+          socket.emit('offer', { offer, to: currentlySharing.id });
         } catch (negErr) {
           console.error('Late-join negotiation failed:', negErr);
         }
       }
     });
 
-    socketRef.current.on('user-left', ({ userId, wasSharing, users: roomUsers }) => {
+    socket.on('user-left', ({ userId, wasSharing, users: roomUsers }) => {
       setUsers(roomUsers);
       if (wasSharing) {
         setSharingUser(null);
         stopVisualization();
-        // Clean up peer connection and audio element for the user who left
         const peer = peersRef.current.get(userId);
         if (peer) {
-          console.log(`Closing peer connection for user ${userId} who left.`);
           peer.connection.close();
           peersRef.current.delete(userId);
         }
         const audioElement = audioElementsRef.current.get(userId);
         if (audioElement) {
-          console.log(`Removing audio element for user ${userId}.`);
           audioElement.srcObject = null;
           audioElement.remove();
           audioElementsRef.current.delete(userId);
@@ -182,401 +179,90 @@ const Room: React.FC = () => {
       }
     });
 
-    // Handle vote updates from other users
-    // Remove any existing listeners to prevent duplicates
-    socketRef.current.off('vote-update');
-    socketRef.current.on('vote-update', ({ userId, upvotes, downvotes }) => {
-      console.log('Vote update received:', { userId, upvotes, downvotes });
-      
-      setUsers(prevUsers => {
-        return prevUsers.map(user => {
-          if (user.id === userId) {
-            return { ...user, upvotes, downvotes };
-          }
-          return user;
-        });
-      });
-      
-      // Update sharing user if needed
-      setSharingUser(prev => {
-        if (prev && prev.id === userId) {
-          console.log('Updating sharing user with new vote counts:', { upvotes, downvotes });
-          // It's important to preserve all properties while only updating the vote counts
-          return { ...prev, upvotes, downvotes };
-        }
-        return prev;
-      });
-      
-      // Make sure the peer connection is still active and tracks are flowing
-      const sharingPeerConn = peersRef.current.get(userId);
-      if (sharingPeerConn && sharingPeerConn.connection.connectionState !== 'connected') {
-        console.log('Sharing user connection is not in connected state, attempting to re-establish');
-        // Don't recreate the connection if it's just connecting/checking, only if it's failed or closed
-        if (['failed', 'closed', 'disconnected'].includes(sharingPeerConn.connection.connectionState)) {
-          console.log('Attempting to re-establish peer connection after vote update');
-          // Create a new peer connection
-          const newPc = createPeerConnection(userId);
-          // Send an offer to re-establish connection
-          newPc.connection.createOffer({
-            offerToReceiveAudio: true,
-            offerToReceiveVideo: false
-          }).then(offer => {
-            newPc.connection.setLocalDescription(offer);
-            socketRef.current?.emit('offer', { offer, to: userId });
-          }).catch(error => {
-            console.error('Failed to create offer after vote update:', error);
-          });
-        }
-      }
+    socket.on('vote-update', ({ userId, upvotes, downvotes }) => {
+      setUsers(prevUsers => prevUsers.map(user => user.id === userId ? { ...user, upvotes, downvotes } : user));
+      setSharingUser(prev => (prev && prev.id === userId) ? { ...prev, upvotes, downvotes } : prev);
     });
 
-    socketRef.current.on('user-started-sharing', async ({ userId, username }) => {
-      // If we are the one sharing, do nothing.
-      if (userId === socketRef.current?.id) {
+    socket.on('user-started-sharing', async ({ userId, username }) => {
+      if (userId === socket.id) return;
+
+      const existingPeer = peersRef.current.get(userId);
+      if (existingPeer && (existingPeer.connection.connectionState === 'connected' || existingPeer.connection.connectionState === 'connecting')) {
         return;
       }
-
-      // Check for an existing peer connection and its state.
-      const existingPeer = peersRef.current.get(userId);
       if (existingPeer) {
-        const state = existingPeer.connection.connectionState;
-        console.log(`Existing peer connection found for ${userId} with state: ${state}`);
-        
-        // If connection is already stable, do nothing.
-        if (state === 'connected' || state === 'connecting') {
-          console.log('Connection is already stable, skipping negotiation.');
-          // Still update the UI state, just in case.
-          setUsers(prevUsers => {
-            const updatedUsers = prevUsers.map(user => ({
-              ...user,
-              isSharing: user.id === userId,
-            }));
-            const sharingUser = updatedUsers.find(user => user.id === userId);
-            setSharingUser(sharingUser || null);
-            return updatedUsers;
-          });
-          return;
-        }
-        
-        // If connection is unstable or closed, clean it up before creating a new one.
-        console.log('Connection is not stable, cleaning up before creating a new one.');
         existingPeer.connection.close();
-        peersRef.current.delete(userId);
       }
 
       setUsers(prevUsers => {
-        const updatedUsers = prevUsers.map(user => ({
-          ...user,
-          isSharing: user.id === userId,
-          // Reset voting stats for new sharing session
-          ...(user.id === userId && { upvotes: 0, downvotes: 0 })
-        }));
-        const sharingUser = updatedUsers.find(user => user.id === userId);
-        setSharingUser(sharingUser || null);
+        const updatedUsers = prevUsers.map(user => ({ ...user, isSharing: user.id === userId }));
+        setSharingUser(updatedUsers.find(user => user.isSharing) || null);
         return updatedUsers;
       });
-      
-      // Reset vote state when a new user starts sharing
       setHasVoted(null);
 
-      // Initiate the WebRTC connection.
       try {
-        console.log('Setting up connection with sharing user:', userId);
         const pc = createPeerConnection(userId);
-        // Create and send offer to the sharing user
-        const offer = await pc.connection.createOffer({
-          offerToReceiveAudio: true,
-          offerToReceiveVideo: false
-        });
+        const offer = await pc.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
         await pc.connection.setLocalDescription(offer);
-        console.log('Sending offer to sharing user:', userId);
-        socketRef.current?.emit('offer', { offer, to: userId });
+        socket.emit('offer', { offer, to: userId });
       } catch (error) {
-        const prev = negotiationAttemptsRef.current.get(userId) || 0;
-        if (prev < 2) {
-          negotiationAttemptsRef.current.set(userId, prev + 1);
-          setTimeout(async () => {
-            try {
-              console.log('Retrying connection with sharing user:', userId);
-              const pcRetry = createPeerConnection(userId);
-              const offerRetry = await pcRetry.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
-              await pcRetry.connection.setLocalDescription(offerRetry);
-              socketRef.current?.emit('offer', { offer: offerRetry, to: userId });
-            } catch (retryErr) {
-              console.error('Retry failed for:', userId, retryErr);
-            }
-          }, 2000);
-        } else {
-          toast.error('Failed to connect to sharing user. Please try joining the room again.');
-        }
+        console.error('Error creating offer for new sharer:', error);
       }
     });
 
-    socketRef.current.on('user-stopped-sharing', ({ userId }) => {
-      setUsers(prevUsers => {
-        const updatedUsers = prevUsers.map(user => ({
-          ...user,
-          isSharing: false
-        }));
-        setSharingUser(null);
-        return updatedUsers;
-      });
-      // Reset vote state when sharing stops
+    socket.on('user-stopped-sharing', ({ userId }) => {
+      setUsers(prevUsers => prevUsers.map(user => ({ ...user, isSharing: false })));
+      setSharingUser(null);
       setHasVoted(null);
       stopVisualization();
-
-      // Clean up peer connection and audio element for the user who stopped sharing
       const peer = peersRef.current.get(userId);
       if (peer) {
-        console.log(`Closing peer connection for user ${userId} who stopped sharing.`);
         peer.connection.close();
         peersRef.current.delete(userId);
       }
       const audioElement = audioElementsRef.current.get(userId);
       if (audioElement) {
-        console.log(`Removing audio element for user ${userId}.`);
         audioElement.srcObject = null;
         audioElement.remove();
         audioElementsRef.current.delete(userId);
       }
     });
 
-    socketRef.current.on('offer', async ({ offer, from }) => {
-      try {
-        console.log('Received offer from:', from);
-        console.log('Original offer SDP:', offer.sdp);
-        
-        // Create peer connection if it doesn't exist
-        let pc = peersRef.current.get(from);
-        if (!pc) {
-          console.log('Creating new peer connection for:', from);
-          pc = createPeerConnection(from);
-        } else {
-          console.log('Using existing peer connection for:', from);
-          pc.connection.close();
-          pc = createPeerConnection(from);
-        }
-        
-        // Initialize ICE candidate queue for this peer
-        if (!iceCandidateQueuesRef.current.has(from)) {
-          iceCandidateQueuesRef.current.set(from, []);
-        }
-        
-        // Set up the ontrack handler for receiving audio
-        pc.connection.ontrack = (event) => {
-          console.log('Received track from peer:', event.streams[0]);
-          const [stream] = event.streams;
-          
-          // Create or get existing audio element for this user
-          let audioElement = audioElementsRef.current.get(from);
-          if (!audioElement) {
-            audioElement = new Audio();
-            audioElement.autoplay = true;
-            (audioElement as any).playsInline = true;
-            audioElement.setAttribute('playsinline', '');
-            audioElement.style.display = 'none';
-            document.body.appendChild(audioElement);
-            audioElement.id = `audio-${from}`;
-            audioElementsRef.current.set(from, audioElement);
-            
-            // Add error handling for audio playback
-            audioElement.onerror = (e) => {
-              console.error('Audio playback error:', e);
-              toast.error('Error playing received audio. Please check your audio output settings.');
-            };
-          }
+    socket.on('offer', async ({ offer, from }) => {
+      let pc = peersRef.current.get(from);
+      if (pc) {
+        pc.connection.close();
+      }
+      pc = createPeerConnection(from);
 
-          // Set the stream as the source and play
-          audioElement.srcObject = stream;
-          const playPromise = audioElement.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(error => {
-              console.error('Error playing audio:', error);
-              if (error.name === 'NotAllowedError') {
-                toast.error('Please click anywhere on the page to start audio playback');
-              } else {
-                toast.error('Failed to play received audio. Try clicking anywhere on the page.');
-              }
-              // Try to play again after a short delay
-              const currentAudioElement = audioElement;
-              if (currentAudioElement) {
-                setTimeout(() => {
-                  currentAudioElement.play().catch(console.error);
-                }, 1000);
-              }
-            });
-          }
+      pc.connection.ontrack = (event) => handleTrack(event, from);
 
-          // Set up visualization for the received stream
-          if (stream.getAudioTracks().length > 0) {
-            setupAudioVisualization(stream);
-          }
-        };
-        
-        // Set the remote description
-        try {
-          console.log('Setting remote description...');
-          const modifiedOffer = new RTCSessionDescription({
-            type: 'offer',
-            sdp: modifySDP(offer.sdp)
-          });
-          console.log('Modified offer SDP:', modifiedOffer.sdp);
-          await pc.connection.setRemoteDescription(modifiedOffer);
-          console.log('Remote description set successfully');
-          
-          // If we're the sharer, make sure we add our tracks after setting remote desc
-          if (localStreamRef.current && isSharing && pc) {
-            console.log('Adding local tracks as sharer to new connection with:', from);
-            const peerConnection = pc; // Create stable reference for callback
-            localStreamRef.current.getAudioTracks().forEach(track => {
-              try {
-                peerConnection.connection.addTrack(track, localStreamRef.current as MediaStream);
-              } catch (e) {
-                console.warn('Error adding track after setRemoteDescription:', e);
-              }
-            });
-          }
-          
-          // Process any queued ICE candidates
-          const queue = iceCandidateQueuesRef.current.get(from);
-          if (queue && queue.length > 0 && pc) {
-            console.log('Processing queued ICE candidates:', queue.length);
-            for (const candidate of queue) {
-              try {
-                await pc.connection.addIceCandidate(new RTCIceCandidate(candidate));
-              } catch (err) {
-                console.error('Error adding queued ICE candidate:', err);
-              }
-            }
-            iceCandidateQueuesRef.current.delete(from);
-          }
-        } catch (err) {
-          console.error('Error setting remote description:', err);
-          // Try to recover by creating a new peer connection
-          console.log('Attempting to recover by creating new peer connection...');
-          pc.connection.close();
-          pc = createPeerConnection(from);
-          peersRef.current.set(from, pc);
-          
-          // Try setting remote description again
-          try {
-            const modifiedOffer = new RTCSessionDescription({
-              type: 'offer',
-              sdp: modifySDP(offer.sdp)
-            });
-            await pc.connection.setRemoteDescription(modifiedOffer);
-            console.log('Successfully recovered and set remote description');
-          } catch (recoveryErr) {
-            console.error('Recovery failed:', recoveryErr);
-            throw new Error('Failed to process offer from sharing user');
-          }
-        }
-        
-        // Create and send answer
-        try {
-          console.log('Creating answer...');
-          const answer = await pc.connection.createAnswer();
-          await pc.connection.setLocalDescription(answer);
-          console.log('Answer created successfully');
-          
-          // Set local description with the original answer first
-          // Then modify the SDP and send
-          const modifiedAnswer = new RTCSessionDescription({
-            type: 'answer',
-            sdp: modifySDP(answer.sdp)
-          });
-          
-          console.log('Sending answer to:', from);
-          socketRef.current?.emit('answer', { answer: modifiedAnswer, to: from });
-        } catch (err) {
-          console.error('Error creating answer:', err);
-          throw new Error('Failed to create answer');
-        }
-      } catch (err) {
-        console.error('Error handling offer:', err);
-        //toast.error(err instanceof Error ? err.message : 'Failed to establish connection with sharing user. Please try again.');
+      await pc.connection.setRemoteDescription(new RTCSessionDescription(offer));
+      
+      if (localStreamRef.current && isSharing) {
+        localStreamRef.current.getTracks().forEach(track => {
+          pc!.connection.addTrack(track, localStreamRef.current!);
+        });
+      }
+
+      const answer = await pc.connection.createAnswer();
+      await pc.connection.setLocalDescription(answer);
+      socket.emit('answer', { answer, to: from });
+    });
+
+    socket.on('answer', async ({ answer, from }) => {
+      const pc = peersRef.current.get(from);
+      if (pc) {
+        await pc.connection.setRemoteDescription(new RTCSessionDescription(answer));
       }
     });
 
-    socketRef.current.on('answer', async ({ answer, from }) => {
-      try {
-        console.log('Received answer from:', from);
-        console.log('Original answer SDP:', answer.sdp);
-        
-        const pc = peersRef.current.get(from);
-        if (pc) {
-          try {
-            console.log('Setting remote description from answer...');
-            // Modify SDP to ensure audio is properly negotiated
-            const modifiedAnswer = new RTCSessionDescription({
-              type: 'answer',
-              sdp: modifySDP(answer.sdp)
-            });
-            console.log('Modified answer SDP:', modifiedAnswer.sdp);
-            
-            await pc.connection.setRemoteDescription(modifiedAnswer);
-            console.log('Successfully set remote description from:', from);
-            
-            // Drain any ICE candidates queued before answer
-            const answerQueue = iceCandidateQueuesRef.current.get(from);
-            if (answerQueue && answerQueue.length) {
-              console.log(`Draining ${answerQueue.length} queued ICE candidates for ${from}`);
-              for (const cand of answerQueue) {
-                try {
-                  await pc.connection.addIceCandidate(new RTCIceCandidate(cand));
-                } catch (e) {
-                  console.error('Error draining ICE candidate:', e);
-                }
-              }
-              iceCandidateQueuesRef.current.delete(from);
-            }
-          } catch (err) {
-            console.error('Error setting remote description from answer:', err);
-            throw new Error('Failed to process answer from peer');
-          }
-        } else {
-          console.error('No peer connection found for:', from);
-          throw new Error('Connection not found');
-        }
-      } catch (err) {
-        console.error('Error handling answer:', err);
-        //toast.error(err instanceof Error ? err.message : 'Failed to process answer from peer');
-      }
-    });
-
-    socketRef.current.on('ice-candidate', async ({ candidate, from }) => {
-      try {
-        console.log('Received ICE candidate from:', from);
-        const pc = peersRef.current.get(from);
-        
-        if (!pc || !pc.connection.remoteDescription) {
-          console.warn('Peer connection not ready for ICE candidate from:', from, '- queueing');
-          if (candidate) {
-            const queue = iceCandidateQueuesRef.current.get(from) || [];
-            queue.push(candidate);
-            iceCandidateQueuesRef.current.set(from, queue);
-          }
-          return;
-        }
-
-        if (!candidate) {
-          console.log('Received null ICE candidate from:', from);
-          return;
-        }
-
-        try {
-          console.log('Adding ICE candidate:', candidate);
-          await pc.connection.addIceCandidate(new RTCIceCandidate(candidate));
-          console.log('Successfully added ICE candidate from:', from);
-        } catch (err) {
-          console.error('Error adding ICE candidate:', err);
-          // Don't throw error, just log it
-          // Some ICE candidates might fail to add, but that's okay
-        }
-      } catch (err) {
-        console.error('Error handling ICE candidate:', err);
-        // Don't throw error, just log it
-        // ICE candidate errors are not critical
+    socket.on('ice-candidate', async ({ candidate, from }) => {
+      const pc = peersRef.current.get(from);
+      if (pc && candidate) {
+        await pc.connection.addIceCandidate(new RTCIceCandidate(candidate));
       }
     });
 
@@ -587,14 +273,13 @@ const Room: React.FC = () => {
         audio.remove();
       });
       audioElementsRef.current.clear();
-      peersRef.current.forEach(peer => {
-        peer.connection.close();
-      });
-      socketRef.current?.disconnect();
-      stopVisualization(); // This will handle the animation frame and analyser nodes
+      peersRef.current.forEach(peer => peer.connection.close());
+      peersRef.current.clear();
+      stopVisualization();
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
+      socket.disconnect();
     };
   }, [roomId]);
 
@@ -1301,7 +986,7 @@ const Room: React.FC = () => {
 
   return (
     <motion.div
-      className={`min-h-screen bg-gradient-to-br from-gray-950 to-gray-900 text-white p-4 md:p-8 transition-all duration-300 ${isChatOpen ? 'pr-[350px]' : ''}`}
+      className={`min-h-screen bg-gradient-to-br from-gray-950 to-gray-900 text-white p-4 md:p-8 transition-all duration-300 ${isChatOpen ? 'pb-[300px]' : ''}`}
       variants={containerVariants}
       initial="hidden"
       animate="visible"
