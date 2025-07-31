@@ -1,4 +1,3 @@
-
 .chat-container {
   position: fixed;
   top: 0;
@@ -8,6 +7,11 @@
   z-index: 1000;
   display: flex;
   flex-direction: column;
+  transition: transform 0.3s ease-in-out;
+}
+
+.chat-container.closed {
+  transform: translateX(100%);
 }
 
 .chat-window {

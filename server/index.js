@@ -266,7 +266,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat-message', ({ roomId, message }) => {
-    socket.to(roomId).emit('chat-message', message);
+    io.to(roomId).emit('chat-message', message);
   });
 });
 

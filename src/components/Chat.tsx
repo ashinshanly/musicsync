@@ -14,12 +14,13 @@ interface ChatProps {
   socket: Socket | undefined;
   roomId: string | undefined;
   username: string;
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
 }
 
-const Chat: React.FC<ChatProps> = ({ socket, roomId, username }) => {
+const Chat: React.FC<ChatProps> = ({ socket, roomId, username, isOpen, setIsOpen }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isOpen, setIsOpen] = useState(true);
   const chatBodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

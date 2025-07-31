@@ -44,6 +44,7 @@ const Room: React.FC = () => {
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [sharingUser, setSharingUser] = useState<User | null>(null);
   const [hasVoted, setHasVoted] = useState<'up' | 'down' | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(true);
   
   const socketRef = useRef<Socket>();
   const localStreamRef = useRef<MediaStream>();
@@ -1300,7 +1301,7 @@ const Room: React.FC = () => {
 
   return (
     <motion.div
-      className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-900 text-white p-4 md:p-8"
+      className={`min-h-screen bg-gradient-to-br from-gray-950 to-gray-900 text-white p-4 md:p-8 transition-all duration-300 ${isChatOpen ? 'pr-[350px]' : ''}`}
       variants={containerVariants}
       initial="hidden"
       animate="visible"
@@ -1308,7 +1309,7 @@ const Room: React.FC = () => {
     >
       <Toaster position="top-right" />
       <div className="max-w-6xl mx-auto bg-black-glass backdrop-blur-xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white-glass">
-        <Chat socket={socketRef.current} roomId={roomId} username={localStorage.getItem('username') || 'Anonymous'} />
+        <Chat socket={socketRef.current} roomId={roomId} username={localStorage.getItem('username') || 'Anonymous'} isOpen={isChatOpen} setIsOpen={setIsChatOpen} />
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-3">
             <Logo size={60} className="hidden md:block" />
