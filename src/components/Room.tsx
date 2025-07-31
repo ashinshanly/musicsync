@@ -991,7 +991,7 @@ const Room: React.FC = () => {
 
   return (
     <motion.div
-      className={`min-h-screen bg-gradient-to-br from-gray-950 to-gray-900 text-white p-4 md:p-8`,
+      className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-900 text-white p-4 md:p-8"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
