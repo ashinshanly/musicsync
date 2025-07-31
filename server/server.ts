@@ -204,6 +204,11 @@ io.on('connection', (socket) => {
     console.log(`ICE candidate from ${socket.id} to ${to}`); // Added logging
     socket.to(to).emit('ice-candidate', { candidate, from: socket.id });
   });
+
+  socket.on('chat-message', ({ roomId, message }: { roomId: string; message: any }) => {
+    console.log(`Server: Received chat message for room ${roomId} from ${message.username}: ${message.text}`);
+    io.to(roomId).emit('chat-message', message);
+  });
 });
 
 // Helper functions
