@@ -53,6 +53,8 @@ const Room: React.FC = () => {
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const iceCandidateQueuesRef = useRef<Map<string, RTCIceCandidate[]>>(new Map());
   const negotiationAttemptsRef = useRef<Map<string, number>>(new Map());
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const visualizedStreamIdRef = useRef<string | null>(null);
 
   // Function to handle voting
   const handleVote = (voteType: 'up' | 'down') => {
@@ -587,9 +589,7 @@ const Room: React.FC = () => {
         peer.connection.close();
       });
       socketRef.current?.disconnect();
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
+      stopVisualization(); // This will handle the animation frame and analyser nodes
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
@@ -894,13 +894,6 @@ const Room: React.FC = () => {
         peer.connection.close();
       });
       peersRef.current.clear();
-      
-      // Clean up audio elements
-      audioElementsRef.current.forEach(audio => {
-        audio.srcObject = null;
-        audio.remove();
-      });
-      audioElementsRef.current.clear();
     }
 
     setIsSharing(false);
@@ -996,17 +989,8 @@ const Room: React.FC = () => {
             }
           } else {
             toast.error(`Failed to play received audio: ${error.message}. Try clicking anywhere on the page.`);
-            // Try to play again after a short delay with user interaction prompt
-            // Save a reference to the current audioElement to use in the event handler
-            const currentAudioElement = audioElement;
-            if (currentAudioElement) {
-              document.body.addEventListener('click', function audioEnableClickHandler() {
-                if (currentAudioElement) {
-                  currentAudioElement.play().catch(console.error);
-                  document.body.removeEventListener('click', audioEnableClickHandler);
-                  console.log('Attempting to play audio after user interaction');
-                }
-              }, { once: true });
+            if (audioElement) { // Ensure audioElement exists before passing to the function
+              createAudioEnableButton(userId, audioElement);
             }
           }
         });
@@ -1061,6 +1045,9 @@ const Room: React.FC = () => {
 
   // Audio visualization using Web Audio API with improved aesthetics
   function setupAudioVisualization(stream: MediaStream) {
+    // Avoid re-initializing for the same stream
+    if (visualizedStreamIdRef.current === stream.id) return;
+
     // Stop any existing visualization loop and resume audio context
     stopVisualization();
     if (audioContextRef.current?.state === 'suspended') {
@@ -1074,8 +1061,11 @@ const Room: React.FC = () => {
     analyserRef.current.fftSize = 2048; // Higher fidelity
     analyserRef.current.smoothingTimeConstant = 0.85; // Smoother transitions
     
-    const source = audioContextRef.current.createMediaStreamSource(stream);
-    source.connect(analyserRef.current);
+    // Create a new source node from the stream
+    sourceNodeRef.current = audioContextRef.current.createMediaStreamSource(stream);
+    sourceNodeRef.current.connect(analyserRef.current);
+    visualizedStreamIdRef.current = stream.id; // Mark this stream as visualized
+
     const canvas = document.getElementById('visualizer') as HTMLCanvasElement;
     const ctx = canvas.getContext('2d')!;
     const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
@@ -1184,10 +1174,16 @@ const Room: React.FC = () => {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = undefined;
     }
+    // Disconnect the source node to stop it from processing audio
+    if (sourceNodeRef.current) {
+      sourceNodeRef.current.disconnect();
+      sourceNodeRef.current = null;
+    }
     if (analyserRef.current) {
-      analyserRef.current.disconnect(); 
+      analyserRef.current.disconnect();
       analyserRef.current = null;
     }
+    visualizedStreamIdRef.current = null; // Reset visualized stream ID
   }
 
   // Check for mobile device on component mount
