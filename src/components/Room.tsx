@@ -1012,8 +1012,6 @@ const Room: React.FC = () => {
       <Toaster position="top-right" />
       <div className="max-w-6xl mx-auto bg-black-glass backdrop-blur-xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white-glass">
         <Chat
-          socket={socketRef.current}
-          roomId={roomId}
           username={localStorage.getItem('username') || 'Anonymous'}
           isOpen={isChatOpen}
           setIsOpen={setIsChatOpen}
