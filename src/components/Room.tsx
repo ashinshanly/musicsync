@@ -44,6 +44,7 @@ const Room: React.FC = () => {
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [sharingUser, setSharingUser] = useState<User | null>(null);
   const [hasVoted, setHasVoted] = useState<'up' | 'down' | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(true);
   const [messages, setMessages] = useState<{ id: string; username: string; text: string; timestamp: string; }[]>([]);
 
   const handleSendMessage = (text: string) => {
@@ -1012,6 +1013,8 @@ const Room: React.FC = () => {
       <div className="max-w-6xl mx-auto bg-black-glass backdrop-blur-xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white-glass">
         <Chat
           username={localStorage.getItem('username') || 'Anonymous'}
+          isOpen={isChatOpen}
+          setIsOpen={setIsChatOpen}
           messages={messages}
           onSendMessage={handleSendMessage}
         />
