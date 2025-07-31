@@ -98,6 +98,7 @@ io.on('connection', (socket) => {
     // Send current users to the new user
     socket.emit('user-joined', { users: room.users });
     socket.to(roomId).emit('user-joined', { users: room.users });
+    socket.to(roomId).emit('user-joined-chat', username);
 
     // If there's a user sharing in the room, notify the new user
     const sharingUser = room.users.find((u: any) => u.isSharing);
@@ -184,6 +185,7 @@ io.on('connection', (socket) => {
             wasSharing,
             users: room.users
           });
+          socket.to(roomId).emit('user-left-chat', user.name);
         }
       }
     }
