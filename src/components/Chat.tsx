@@ -11,15 +11,14 @@ interface Message {
 }
 
 interface ChatProps {
-  socket: Socket | undefined;
-  roomId: string | undefined;
-  username: string;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
   messages: Message[];
+  onSendMessage: (text: string) => void;
+  username: string;
 }
 
-const Chat: React.FC<ChatProps> = ({ socket, roomId, username, isOpen, setIsOpen, messages }) => {
+const Chat: React.FC<ChatProps> = ({ isOpen, setIsOpen, messages, onSendMessage, username }) => {
   const [newMessage, setNewMessage] = useState('');
   const chatBodyRef = useRef<HTMLDivElement>(null);
 
@@ -29,59 +28,41 @@ const Chat: React.FC<ChatProps> = ({ socket, roomId, username, isOpen, setIsOpen
     }
   }, [messages]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim() && socket) {
-      const message: Message = {
-        id: `${Date.now()}`,
-        username,
-        text: newMessage,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      socket.emit('chat-message', { roomId, message });
-      setNewMessage('');
-    }
+    onSendMessage(newMessage);
+    setNewMessage('');
   };
 
   return (
-    <>
-      <div className={`chat-container ${isOpen ? 'open' : ''}`}>
-        <div className="chat-window">
-          <div className="chat-header">
-            <h3>Live Chat</h3>
-            <button onClick={() => setIsOpen(false)}>&times;</button>
-          </div>
-          <div className="chat-body" ref={chatBodyRef}>
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`chat-message ${msg.username === username ? 'my-message' : ''} ${msg.username === 'System' ? 'system-message' : ''}`}>
-                <div className="message-username">{msg.username}</div>
-                <div className="message-text">{msg.text}</div>
-                <div className="message-timestamp">{msg.timestamp}</div>
-              </div>
-            ))}
-          </div>
-          <form className="chat-input" onSubmit={handleSendMessage}>
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Type a message..."
-            />
-            <button type="submit">Send</button>
-          </form>
+    <div className={`chat-container ${isOpen ? 'open' : 'closed'}`}>
+      <div className="chat-window">
+        <div className="chat-header" onClick={() => setIsOpen(!isOpen)}>
+          <h3>Live Chat</h3>
+          <button>{isOpen ? '▼' : '▲'}</button>
         </div>
+        <div className="chat-body" ref={chatBodyRef}>
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`chat-message ${msg.username === username ? 'my-message' : ''} ${msg.username === 'System' ? 'system-message' : ''}`}>
+              <div className="message-username">{msg.username}</div>
+              <div className="message-text">{msg.text}</div>
+              <div className="message-timestamp">{msg.timestamp}</div>
+            </div>
+          ))}
+        </div>
+        <form className="chat-input" onSubmit={handleFormSubmit}>
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type a message..."
+          />
+          <button type="submit">Send</button>
+        </form>
       </div>
-      {!isOpen && (
-        <button
-          className="chat-toggle-button"
-          onClick={() => setIsOpen(true)}
-        >
-          Chat
-        </button>
-      )}
-    </>
+    </div>
   );
 };
 

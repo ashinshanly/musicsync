@@ -46,6 +46,18 @@ const Room: React.FC = () => {
   const [hasVoted, setHasVoted] = useState<'up' | 'down' | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [messages, setMessages] = useState<{ id: string; username: string; text: string; timestamp: string; }[]>([]);
+
+  const handleSendMessage = (text: string) => {
+    if (text.trim() && socketRef.current) {
+      const message = {
+        id: `${Date.now()}`,
+        username: localStorage.getItem('username') || 'Anonymous',
+        text,
+        timestamp: new Date().toLocaleTimeString(),
+      };
+      socketRef.current.emit('chat-message', { roomId, message });
+    }
+  };
   
   const socketRef = useRef<Socket>();
   const localStreamRef = useRef<MediaStream>();
@@ -1006,6 +1018,7 @@ const Room: React.FC = () => {
           isOpen={isChatOpen}
           setIsOpen={setIsChatOpen}
           messages={messages}
+          onSendMessage={handleSendMessage}
         />
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-3">
