@@ -5,6 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
 import Logo from './Logo';
+import Chat from './Chat';
 import toast, { Toaster } from 'react-hot-toast';
 
 interface User {
@@ -1307,6 +1308,7 @@ const Room: React.FC = () => {
     >
       <Toaster position="top-right" />
       <div className="max-w-6xl mx-auto bg-black-glass backdrop-blur-xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white-glass">
+        <Chat socket={socketRef.current} roomId={roomId} username={localStorage.getItem('username') || 'Anonymous'} />
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center space-x-3">
             <Logo size={60} className="hidden md:block" />

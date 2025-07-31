@@ -98,6 +98,7 @@ io.on('connection', (socket) => {
     // Send current users to the new user
     socket.emit('user-joined', { users: room.users });
     socket.to(roomId).emit('user-joined', { users: room.users });
+    socket.to(roomId).emit('user-joined-chat', username);
   });
 
   // Handle start sharing
@@ -189,6 +190,7 @@ io.on('connection', (socket) => {
           wasSharing,
           users: room.users
         });
+        socket.to(roomId).emit('user-left-chat', user.name);
       }
     }
   });
@@ -261,6 +263,10 @@ io.on('connection', (socket) => {
 
   socket.on('ice-candidate', ({ candidate, to }) => {
     socket.to(to).emit('ice-candidate', { candidate, from: socket.id });
+  });
+
+  socket.on('chat-message', ({ roomId, message }) => {
+    socket.to(roomId).emit('chat-message', message);
   });
 });
 
