@@ -266,6 +266,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat-message', ({ roomId, message }) => {
+    console.log(`Server: Received chat message for room ${roomId} from ${message.username}: ${message.text}`);
     io.to(roomId).emit('chat-message', message);
   });
 });

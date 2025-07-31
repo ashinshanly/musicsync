@@ -55,7 +55,10 @@ const Room: React.FC = () => {
         text,
         timestamp: new Date().toLocaleTimeString(),
       };
+      console.log('Client: Sending chat message:', message);
       socketRef.current.emit('chat-message', { roomId, message });
+    } else {
+      console.log('Client: Cannot send empty message or socket not connected.');
     }
   };
   
