@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Socket } from 'socket.io-client';
 import './Chat.css';
 
@@ -79,33 +78,23 @@ const Chat: React.FC<ChatProps> = ({ socket, roomId, username }) => {
 
   return (
     <div className={`chat-container ${isOpen ? 'open' : 'closed'}`}>
-      <motion.div
+      <div
         className="chat-window"
-        initial={{ x: '100%' }}
-        animate={{ x: isOpen ? 0 : '100%' }}
-        transition={{ duration: 0.3, ease: 'easeInOut' }}
       >
         <div className="chat-header">
           <h3>Live Chat</h3>
           <button onClick={() => setIsOpen(false)}>&times;</button>
         </div>
         <div className="chat-body" ref={chatBodyRef}>
-          <AnimatePresence>
-            {messages.map((msg) => (
-              <motion.div
-                key={msg.id}
-                className={`chat-message ${msg.username === username ? 'my-message' : ''} ${msg.username === 'System' ? 'system-message' : ''}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="message-username">{msg.username}</div>
-                <div className="message-text">{msg.text}</div>
-                <div className="message-timestamp">{msg.timestamp}</div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`chat-message ${msg.username === username ? 'my-message' : ''} ${msg.username === 'System' ? 'system-message' : ''}`}>
+              <div className="message-username">{msg.username}</div>
+              <div className="message-text">{msg.text}</div>
+              <div className="message-timestamp">{msg.timestamp}</div>
+            </div>
+          ))}
         </div>
         <form className="chat-input" onSubmit={handleSendMessage}>
           <input
@@ -116,17 +105,14 @@ const Chat: React.FC<ChatProps> = ({ socket, roomId, username }) => {
           />
           <button type="submit">Send</button>
         </form>
-      </motion.div>
+      </div>
       {!isOpen && (
-        <motion.button
+        <button
           className="chat-toggle-button"
           onClick={() => setIsOpen(true)}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
         >
           Chat
-        </motion.button>
+        </button>
       )}
     </div>
   );
