@@ -1255,27 +1255,56 @@ const Room: React.FC = () => {
               </div>
 
               <div className="pt-4 border-t border-white-glass mt-4">
-                <div className="flex items-center justify-center gap-4">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                   {!sharingUser && (
                     <>
-                      <button
-                        onClick={() => setShareType("system")}
-                        disabled={isMobile}
-                        className={`px-4 py-2 rounded-lg transition-colors ${shareType === "system" ? "bg-purple-500 text-white" : isMobile ? "bg-gray-600 text-gray-400 cursor-not-allowed opacity-60" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
-                      >
-                        System Audio
-                        {isMobile && (
-                          <span className="block text-xs mt-1">
-                            Not on mobile
-                          </span>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => setShareType("microphone")}
-                        className={`px-4 py-2 rounded-lg transition-colors ${shareType === "microphone" ? "bg-purple-500 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"}`}
-                      >
-                        Microphone
-                      </button>
+                      {/* Source Selection Toggle */}
+                      <div className="bg-black-glass backdrop-blur-sm border border-white-glass rounded-lg p-1 flex items-center">
+                        <button
+                          onClick={() => setShareType("system")}
+                          disabled={isMobile}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all duration-300 ${
+                            shareType === "system"
+                              ? "bg-purple-600 text-white shadow-lg"
+                              : "text-gray-300 hover:bg-gray-700/50"
+                          } ${isMobile ? "cursor-not-allowed opacity-50" : ""}`}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M3 5a2 2 0 012-2h10a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm2 0v6h10V5H5z"
+                              clipRule="evenodd"
+                            />
+                            <path d="M3 14a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" />
+                          </svg>
+                          System
+                        </button>
+                        <button
+                          onClick={() => setShareType("microphone")}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all duration-300 ${shareType === "microphone" ? "bg-purple-600 text-white shadow-lg" : "text-gray-300 hover:bg-gray-700/50"}`}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          Mic
+                        </button>
+                      </div>
+
+                      {/* Share Button */}
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
@@ -1284,23 +1313,11 @@ const Room: React.FC = () => {
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
+                          className="h-6 w-6"
                           viewBox="0 0 20 20"
                           fill="currentColor"
                         >
-                          {shareType === "microphone" ? (
-                            <path
-                              fillRule="evenodd"
-                              d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
-                              clipRule="evenodd"
-                            />
-                          ) : (
-                            <path
-                              fillRule="evenodd"
-                              d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
-                              clipRule="evenodd"
-                            />
-                          )}
+                          <path d="M4.34 2.827a1 1 0 011.32 0l1.413 1.415a1 1 0 010 1.318L4.22 8.414a1 1 0 01-1.319 0L1.586 7.1a1 1 0 010-1.318L2.9 4.366a1 1 0 011.44-.002zM10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 14a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm-5.66-2.173a1 1 0 010-1.318l2.854-2.854a1 1 0 011.318 0l2.854 2.854a1 1 0 010 1.318l-1.414 1.414a1 1 0 01-1.318 0L10 13.414l-1.414 1.414a1 1 0 01-1.318 0l-1.414-1.414zm11.318-9.854a1 1 0 010 1.318L12.8 8.414a1 1 0 01-1.318 0L8.627 5.56a1 1 0 010-1.318l1.414-1.414a1 1 0 011.318 0L14.214 5.7a1 1 0 011.318 0l1.414 1.414z" />
                         </svg>
                         <span>Share Audio</span>
                       </motion.button>
