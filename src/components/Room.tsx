@@ -973,6 +973,14 @@ const Room: React.FC = () => {
       window.removeEventListener("resize", resizeCanvasListenerRef.current);
       resizeCanvasListenerRef.current = null;
     }
+
+    // Explicitly clear the canvas
+    const canvas = document.getElementById("visualizer") as HTMLCanvasElement;
+    if (canvas) {
+      const ctx = canvas.getContext("2d")!;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
     visualizedStreamIdRef.current = null; // Reset visualized stream ID
     console.log("Visualized stream ID reset.");
   }
