@@ -5,7 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
 import Logo from './Logo';
-import Chat from './Chat';
+
 import toast, { Toaster } from 'react-hot-toast';
 
 interface User {
