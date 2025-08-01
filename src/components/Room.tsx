@@ -46,22 +46,11 @@ const Room: React.FC = () => {
   const [hasVoted, setHasVoted] = useState<'up' | 'down' | null>(null);
   const [messages, setMessages] = useState<{ id: string; username: string; text: string; timestamp: string; }[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const isSharingRef = useRef(isSharing);
+  useEffect(() => {
+    isSharingRef.current = isSharing;
+  }, [isSharing]);
 
-  const handleSendMessage = (text: string) => {
-    if (text.trim() && socketRef.current) {
-      const message = {
-        id: `${Date.now()}`,
-        username: localStorage.getItem('username') || 'Anonymous',
-        text,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      console.log('Client: Sending chat message:', message);
-      socketRef.current.emit('chat-message', { roomId, message });
-    } else {
-      console.log('Client: Cannot send empty message or socket not connected.');
-    }
-  };
-  
   const socketRef = useRef<Socket>();
   const localStreamRef = useRef<MediaStream>();
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -69,10 +58,23 @@ const Room: React.FC = () => {
   const animationFrameRef = useRef<number>();
   const peersRef = useRef<Map<string, PeerConnection>>(new Map());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
-  const iceCandidateQueuesRef = useRef<Map<string, RTCIceCandidate[]>>(new Map());
-  const negotiationAttemptsRef = useRef<Map<string, number>>(new Map());
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const visualizedStreamIdRef = useRef<string | null>(null);
+
+  const handleSendMessage = (message: string) => {
+    if (socketRef.current && message.trim()) {
+      const username = localStorage.getItem('username') || 'Anonymous';
+      socketRef.current.emit('chat-message', {
+        roomId,
+        message: {
+          id: `${socketRef.current.id}-${Date.now()}`,
+          username,
+          text: message,
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      });
+    }
+  };
 
   // Function to handle voting
   const handleVote = (voteType: 'up' | 'down') => {
@@ -280,7 +282,7 @@ const Room: React.FC = () => {
       }
       socket.disconnect();
     };
-  }, [roomId]);
+  }, [roomId, navigate]);
 
   
 
