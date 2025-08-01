@@ -15,7 +15,7 @@
 
 MusicSync transforms how we share music in the digital age. It's a borderless virtual listening room where friends, family, and music enthusiasts from across the globe can converge to experience audio in perfect sync—just like sitting in the same room.
 
-> *"Music gives a soul to the universe, wings to the mind, flight to the imagination, and life to everything." — Plato*
+> _"Music gives a soul to the universe, wings to the mind, flight to the imagination, and life to everything." — Plato_
 
 With MusicSync, those solo listening sessions become vibrant social gatherings, where reactions, votes, and energy flow in real-time. No more "you had to be there" moments—now everyone can be there.
 
@@ -41,17 +41,20 @@ Unlike Spotify Jam, MusicSync offers:
 ## Installation
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/musicsync.git
 cd musicsync
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. Start the development server:
+
 ```bash
 npm start
 ```

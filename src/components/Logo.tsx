@@ -1,13 +1,13 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import logoImage from '../assets/logo.png';
+import React from "react";
+import { motion } from "framer-motion";
+import logoImage from "../assets/logo.png";
 
 interface LogoProps {
   className?: string;
   size?: number;
 }
 
-const Logo: React.FC<LogoProps> = ({ className = '', size = 120 }) => {
+const Logo: React.FC<LogoProps> = ({ className = "", size = 120 }) => {
   return (
     <motion.div
       className={`relative ${className}`}
@@ -15,17 +15,17 @@ const Logo: React.FC<LogoProps> = ({ className = '', size = 120 }) => {
       animate={{ scale: 1, opacity: 1 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
     >
-      <img 
-        src={logoImage} 
-        alt="MusicSync Logo" 
-        style={{ 
+      <img
+        src={logoImage}
+        alt="MusicSync Logo"
+        style={{
           width: size,
-          height: 'auto',
-          filter: 'drop-shadow(0 0 10px rgba(0, 0, 0, 0.3))'
-        }} 
+          height: "auto",
+          filter: "drop-shadow(0 0 10px rgba(0, 0, 0, 0.3))",
+        }}
       />
     </motion.div>
   );
 };
 
-export default Logo; 
+export default Logo;

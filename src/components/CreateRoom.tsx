@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 
 const CreateRoom: React.FC = () => {
   const navigate = useNavigate();
-  const [roomName, setRoomName] = useState('');
-  const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
+  const [roomName, setRoomName] = useState("");
+  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,17 +31,14 @@ const CreateRoom: React.FC = () => {
   };
 
   return (
-    <motion.div 
+    <motion.div
       className="container mx-auto px-4 py-12"
       initial="hidden"
       animate="visible"
       variants={formVariants}
     >
-      <motion.div 
-        className="max-w-md mx-auto"
-        variants={formVariants}
-      >
-        <motion.h2 
+      <motion.div className="max-w-md mx-auto" variants={formVariants}>
+        <motion.h2
           className="text-3xl heading-primary mb-8 gradient-text text-center"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -49,7 +46,7 @@ const CreateRoom: React.FC = () => {
         >
           Create a Room
         </motion.h2>
-        
+
         <form onSubmit={handleSubmit} className="space-y-8">
           <motion.div
             variants={formVariants}
@@ -57,7 +54,9 @@ const CreateRoom: React.FC = () => {
             animate="visible"
             transition={{ delay: 0.3 }}
           >
-            <label className="block text-sm heading-secondary mb-2 text-white/60">Username</label>
+            <label className="block text-sm heading-secondary mb-2 text-white/60">
+              Username
+            </label>
             <motion.input
               type="text"
               required
@@ -76,7 +75,9 @@ const CreateRoom: React.FC = () => {
             animate="visible"
             transition={{ delay: 0.4 }}
           >
-            <label className="block text-sm heading-secondary mb-2 text-white/60">Room Name</label>
+            <label className="block text-sm heading-secondary mb-2 text-white/60">
+              Room Name
+            </label>
             <motion.input
               type="text"
               required
@@ -95,7 +96,9 @@ const CreateRoom: React.FC = () => {
             animate="visible"
             transition={{ delay: 0.5 }}
           >
-            <label className="block text-sm heading-secondary mb-2 text-white/60">Password (Optional)</label>
+            <label className="block text-sm heading-secondary mb-2 text-white/60">
+              Password (Optional)
+            </label>
             <motion.input
               type="password"
               value={password}
@@ -107,7 +110,7 @@ const CreateRoom: React.FC = () => {
             />
           </motion.div>
 
-          <motion.div 
+          <motion.div
             className="flex gap-4 pt-4"
             variants={formVariants}
             initial="hidden"
@@ -116,7 +119,7 @@ const CreateRoom: React.FC = () => {
           >
             <motion.button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={() => navigate("/")}
               className="flex-1 p-3 rounded-lg border border-white/10 hover:border-accent-1/50 
                        transition-colors duration-300 heading-secondary text-white/60 hover:text-white"
               whileHover={{ scale: 1.02 }}
@@ -139,4 +142,4 @@ const CreateRoom: React.FC = () => {
   );
 };
 
-export default CreateRoom; 
+export default CreateRoom;

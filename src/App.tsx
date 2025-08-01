@@ -1,7 +1,7 @@
-import React from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
-import Home from './components/Home';
-import Room from './components/Room';
+import React from "react";
+import { HashRouter as Router, Routes, Route } from "react-router-dom";
+import Home from "./components/Home";
+import Room from "./components/Room";
 
 const App: React.FC = () => {
   return (

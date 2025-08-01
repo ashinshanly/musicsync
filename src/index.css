@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Syncopate:wght@400;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Syncopate:wght@400;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -29,7 +29,7 @@ body {
 }
 
 .neon-button::before {
-  content: '';
+  content: "";
   @apply absolute inset-0 bg-gradient-to-r from-accent-1 via-accent-2 to-accent-1 bg-300% opacity-0 
          transition-opacity duration-500;
 }
@@ -46,7 +46,7 @@ body {
 }
 
 .room-card::before {
-  content: '';
+  content: "";
   @apply absolute inset-0 bg-gradient-to-br from-accent-1/5 to-accent-2/5 opacity-0 
          transition-opacity duration-500;
 }

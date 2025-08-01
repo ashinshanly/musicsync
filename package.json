@@ -30,6 +30,7 @@
     "build:vercel": "npm run build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
     "analyze": "source-map-explorer 'build/static/js/*.js'",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build",
@@ -61,6 +62,7 @@
     "concurrently": "^9.2.0",
     "gh-pages": "^6.3.0",
     "postcss": "^8.4.35",
+    "prettier": "^3.6.2",
     "source-map-explorer": "^2.5.3",
     "tailwindcss": "^3.4.1"
   }

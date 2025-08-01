@@ -13,12 +13,6 @@
     "isolatedModules": true,
     "noImplicitAny": false
   },
-  "include": [
-    "*.ts",
-    "**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
-} 
+  "include": ["*.ts", "**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
