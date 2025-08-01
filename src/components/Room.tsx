@@ -44,8 +44,8 @@ const Room: React.FC = () => {
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [sharingUser, setSharingUser] = useState<User | null>(null);
   const [hasVoted, setHasVoted] = useState<'up' | 'down' | null>(null);
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [messages, setMessages] = useState<{ id: string; username: string; text: string; timestamp: string; }[]>([]);
+  const [newMessage, setNewMessage] = useState('');
 
   const handleSendMessage = (text: string) => {
     if (text.trim() && socketRef.current) {
@@ -738,18 +738,7 @@ const Room: React.FC = () => {
     },
   };
 
-  const modifySDP = (sdp: string | undefined): string => {
-    if (!sdp) return '';
-    // More robust Opus stereo enforcement in SDP
-    return sdp.replace(/a=fmtp:(\d+) (.*)/, (match, pt, params) => {
-      // Only modify if it's actually Opus
-      if (sdp.includes(`a=rtpmap:${pt} opus/`)) {
-        console.log(`Found Opus codec at payload type ${pt}, enhancing for stereo`);
-        return `a=fmtp:${pt} ${params}; stereo=1; sprop-stereo=1; maxaveragebitrate=510000; maxplaybackrate=48000; useinbandfec=1; cbr=1`;
-      }
-      return match;
-    });
-  };
+  
 
   // Audio visualization using Web Audio API with improved aesthetics
   function setupAudioVisualization(stream: MediaStream) {
@@ -1219,11 +1208,15 @@ const Room: React.FC = () => {
               ))}
             </div>
             <div className="p-4 border-t border-white-glass">
-              <form className="flex gap-2" onSubmit={handleSendMessage}>
+              <form className="flex gap-2" onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage(newMessage);
+                  setNewMessage('');
+                }}>
                 <input
                   type="text"
-                  value={""}
-                  onChange={(e) => {}}
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type a message..."
                   className="flex-grow bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500"
                 />
