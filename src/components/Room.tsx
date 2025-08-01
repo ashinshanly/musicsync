@@ -1410,7 +1410,7 @@ const Room: React.FC = () => {
             </div>
             <div className="p-4 border-t border-white-glass">
               <form
-                className="flex items-center gap-2"
+                className="flex items-center justify-center gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
                   handleSendMessage(newMessage);
@@ -1422,7 +1422,7 @@ const Room: React.FC = () => {
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type a message..."
-                  className="flex-grow bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500"
                 />
                 <button
                   type="submit"
