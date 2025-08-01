@@ -161,19 +161,25 @@ const Room: React.FC = () => {
     socket.emit('join-room', { roomId, username });
 
     socket.on('user-joined', async ({ users: roomUsers }) => {
-      setUsers(roomUsers);
       const currentlySharing = roomUsers.find((user: User) => user.isSharing);
       setSharingUser(currentlySharing || null);
+
+      // Only establish a connection if there is a sharer AND we are not already connected.
       if (currentlySharing && currentlySharing.id !== socket.id) {
-        try {
-          const pc = createPeerConnection(currentlySharing.id);
-          const offer = await pc.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
-          await pc.connection.setLocalDescription(offer);
-          socket.emit('offer', { offer, to: currentlySharing.id });
-        } catch (negErr) {
-          console.error('Late-join negotiation failed:', negErr);
+        const existingPeer = peersRef.current.get(currentlySharing.id);
+        if (!existingPeer || existingPeer.connection.connectionState !== 'connected') {
+          try {
+            const pc = createPeerConnection(currentlySharing.id);
+            const offer = await pc.connection.createOffer();
+            await pc.connection.setLocalDescription(offer);
+            socket.emit('offer', { offer, to: currentlySharing.id });
+          } catch (negErr) {
+            console.error('Late-join negotiation failed:', negErr);
+          }
         }
       }
+      // Always update the user list for everyone.
+      setUsers(roomUsers);
     });
 
     socket.on('user-left', ({ userId, wasSharing, users: roomUsers }) => {
@@ -200,33 +206,7 @@ const Room: React.FC = () => {
       setSharingUser(prev => (prev && prev.id === userId) ? { ...prev, upvotes, downvotes } : prev);
     });
 
-    socket.on('user-started-sharing', async ({ userId, username }) => {
-      if (userId === socket.id) return;
-
-      const existingPeer = peersRef.current.get(userId);
-      if (existingPeer && (existingPeer.connection.connectionState === 'connected' || existingPeer.connection.connectionState === 'connecting')) {
-        return;
-      }
-      if (existingPeer) {
-        existingPeer.connection.close();
-      }
-
-      setUsers(prevUsers => {
-        const updatedUsers = prevUsers.map(user => ({ ...user, isSharing: user.id === userId }));
-        setSharingUser(updatedUsers.find(user => user.isSharing) || null);
-        return updatedUsers;
-      });
-      setHasVoted(null);
-
-      try {
-        const pc = createPeerConnection(userId);
-        const offer = await pc.connection.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
-        await pc.connection.setLocalDescription(offer);
-        socket.emit('offer', { offer, to: userId });
-      } catch (error) {
-        console.error('Error creating offer for new sharer:', error);
-      }
-    });
+    
 
     socket.on('user-stopped-sharing', ({ userId }) => {
       setUsers(prevUsers => prevUsers.map(user => ({ ...user, isSharing: false })));
@@ -247,25 +227,24 @@ const Room: React.FC = () => {
     });
 
     socket.on('offer', async ({ offer, from }) => {
-      let pc = peersRef.current.get(from);
-      if (pc) {
-        pc.connection.close();
+      if (isSharing) { // Sharer receiving offer from a late-joiner
+        let pc = peersRef.current.get(from);
+        if (pc) pc.connection.close();
+        pc = createPeerConnection(from);
+        await pc.connection.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.connection.createAnswer();
+        await pc.connection.setLocalDescription(answer);
+        socket.current.emit('answer', { answer, to: from });
+      } else { // Listener receiving offer from the sharer
+        let pc = peersRef.current.get(from);
+        if (pc) pc.connection.close();
+        pc = createPeerConnection(from);
+        pc.connection.ontrack = (event) => handleTrack(event, from);
+        await pc.connection.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.connection.createAnswer();
+        await pc.connection.setLocalDescription(answer);
+        socket.current.emit('answer', { answer, to: from });
       }
-      pc = createPeerConnection(from);
-
-      pc.connection.ontrack = (event) => handleTrack(event, from);
-
-      await pc.connection.setRemoteDescription(new RTCSessionDescription(offer));
-      
-      if (localStreamRef.current && isSharing) {
-        localStreamRef.current.getTracks().forEach(track => {
-          pc!.connection.addTrack(track, localStreamRef.current!);
-        });
-      }
-
-      const answer = await pc.connection.createAnswer();
-      await pc.connection.setLocalDescription(answer);
-      socket.emit('answer', { answer, to: from });
     });
 
     socket.on('answer', async ({ answer, from }) => {
@@ -303,17 +282,7 @@ const Room: React.FC = () => {
     };
   }, [roomId]);
 
-  // Resume AudioContext on user gesture to enable visualizer
-  useEffect(() => {
-    const resumeCtx = () => {
-      if (audioContextRef.current?.state === 'suspended') {
-        audioContextRef.current.resume().catch(console.error);
-      }
-    };
-    const events = ['click', 'touchstart'];
-    events.forEach(evt => document.addEventListener(evt, resumeCtx));
-    return () => events.forEach(evt => document.removeEventListener(evt, resumeCtx));
-  }, []);
+  
 
   const createPeerConnection = (userId: string) => {
     console.log('Creating peer connection for user:', userId);
