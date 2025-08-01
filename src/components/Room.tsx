@@ -581,6 +581,7 @@ const Room: React.FC = () => {
   };
 
   const stopSharing = () => {
+    console.log('Sharer: stopSharing function called.');
     // Remove beforeunload listener
     window.removeEventListener('beforeunload', stopSharing);
 
@@ -605,7 +606,7 @@ const Room: React.FC = () => {
 
     setIsSharing(false);
     socketRef.current?.emit('stop-sharing');
-    stopVisualization();
+    stopVisualization(); // This is the call for the sharer's own visualizer
   };
 
   const handleTrack = (event: RTCTrackEvent, userId: string) => {
@@ -877,20 +878,25 @@ const Room: React.FC = () => {
   }
 
   function stopVisualization() {
+    console.log('stopVisualization called.');
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = undefined;
+      console.log('Animation frame canceled.');
     }
     // Disconnect the source node to stop it from processing audio
     if (sourceNodeRef.current) {
       sourceNodeRef.current.disconnect();
       sourceNodeRef.current = null;
+      console.log('Source node disconnected.');
     }
     if (analyserRef.current) {
       analyserRef.current.disconnect();
       analyserRef.current = null;
+      console.log('Analyser node disconnected.');
     }
     visualizedStreamIdRef.current = null; // Reset visualized stream ID
+    console.log('Visualized stream ID reset.');
   }
 
   // Check for mobile device on component mount
@@ -1006,41 +1012,32 @@ const Room: React.FC = () => {
 
   return (
     <motion.div
-      className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-900 text-white p-4 md:p-8 pb-[550px]"
+      className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-900 text-white p-4 md:p-8"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
       exit="exit"
     >
       <Toaster position="top-right" />
-      <div className="max-w-6xl mx-auto bg-black-glass backdrop-blur-xl rounded-2xl p-4 md:p-6 shadow-2xl border border-white-glass">
-        <Chat
-          username={localStorage.getItem('username') || 'Anonymous'}
-          isOpen={isChatOpen}
-          setIsOpen={setIsChatOpen}
-          messages={messages}
-          onSendMessage={handleSendMessage}
-        />
-        <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center space-x-3">
-            <Logo size={60} className="hidden md:block" />
-            <div className="flex items-center">
-              <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
-                Room: {roomId}
-              </h1>
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                className="ml-3 p-2 rounded-full bg-purple-500/20 backdrop-blur-sm hover:bg-purple-500/30 text-white transition-all duration-300 border border-purple-500/30"
-                onClick={copyLink}
-                title="Copy invite link"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
-                  <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
-                </svg>
-              </motion.button>
-            </div>
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center space-x-4">
+            <Logo size={50} />
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
+              Room: {roomId}
+            </h1>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="p-2 rounded-full bg-purple-500/20 backdrop-blur-sm hover:bg-purple-500/30 text-white transition-all duration-300 border border-purple-500/30"
+              onClick={copyLink}
+              title="Copy invite link"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+              </svg>
+            </motion.button>
           </div>
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -1052,123 +1049,24 @@ const Room: React.FC = () => {
           </motion.button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Audio Controls */}
-          <div className="lg:col-span-2 bg-black-glass backdrop-blur-xl rounded-xl p-6 shadow-xl border border-white-glass transition-all duration-300 hover:border-purple-500/30">
-            <div className="flex flex-col items-center space-y-6">
-              {sharingUser && !isSharing && (
-                <div className="text-center p-4 bg-purple-500/20 border border-purple-500 rounded-lg w-full backdrop-blur-sm shadow-lg mb-4">
-                  <div className="flex items-center justify-center flex-wrap">
-                    <span className="font-medium text-purple-300">{sharingUser.name}</span>
-                    <span className="text-gray-300"> is currently sharing audio</span>
-                    <button 
-                      className="ml-4 mt-2 sm:mt-0 px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-full text-sm transition-all"
-                      onClick={() => {
-                        // Find all audio elements and try to play them
-                        const audioElements = document.querySelectorAll('audio');
-                        let playAttempts = 0;
-                        
-                        audioElements.forEach(audio => {
-                          if (audio.srcObject) {
-                            audio.play().then(() => {
-                              playAttempts++;
-                              console.log(`Played audio ${playAttempts}/${audioElements.length}`);
-                              if (playAttempts === audioElements.length) {
-                                toast.success('Audio enabled!');
-                              }
-                            }).catch(err => {
-                              console.error('Could not play audio:', err);
-                            });
-                          }
-                        });
-                        
-                        toast.success('Attempting to enable audio...', { id: 'enable-audio-attempt' });
-                      }}
-                    >
-                      Enable Audio
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {!sharingUser && (
-                <>
-                  <div className="flex items-center space-x-4 mb-4">
-                    <button
-                      onClick={() => setShareType('system')}
-                      disabled={isMobile}
-                      className={`px-4 py-2 rounded-lg transition-colors ${
-                        shareType === 'system'
-                          ? 'bg-purple-500 text-white'
-                          : isMobile 
-                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-60'
-                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      }`}
-                    >
-                      System Audio
-                      {isMobile && <span className="block text-xs mt-1">Not available on mobile</span>}
-                    </button>
-                    <button
-                      onClick={() => setShareType('microphone')}
-                      className={`px-4 py-2 rounded-lg transition-colors ${
-                        shareType === 'microphone'
-                          ? 'bg-purple-500 text-white'
-                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      }`}
-                    >
-                      Microphone
-                    </button>
-                  </div>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-6 py-3 rounded-lg shadow-lg text-lg font-semibold bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 transition-all duration-300 flex items-center justify-center space-x-2"
-                    onClick={startSharing}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      {shareType === 'microphone' ? (
-                        <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
-                      ) : (
-                        <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
-                      )}
-                    </svg>
-                    <span>Share {shareType === 'microphone' ? 'Microphone' : 'System Audio'}</span>
-                  </motion.button>
-                </>
-              )}
-
-              {isSharing && sharingUser && (
-                <div className="space-y-4">
-                  <div className="text-center p-4 bg-purple-500/30 border border-purple-500/50 rounded-lg w-full backdrop-blur-sm shadow-lg">
-                    <div className="flex justify-center items-center">
-                      <span className="font-medium text-white">You are sharing audio</span>
-                    </div>
-                  </div>
-                  
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-6 py-3 rounded-lg shadow-lg text-lg font-semibold bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transition-all duration-300 flex items-center justify-center space-x-2"
-                    onClick={stopSharing}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
-                    </svg>
-                    <span>Stop Sharing</span>
-                  </motion.button>
-                </div>
-              )}
-
-              {/* Inline error UI removed; notifications shown via toast */}
-
-              <div className="w-full rounded-xl overflow-hidden shadow-[0_0_30px_rgba(138,58,185,0.3)] border border-purple-500/20 bg-gray-950 relative group transition-all duration-500 hover:shadow-[0_0_40px_rgba(138,58,185,0.4)]">
-                <div className="absolute -top-0.5 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-300"></div>
-                
-                {/* Voting Controls - Now positioned at the top of the visualizer */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-120px)]">
+          {/* Main Content */}
+          <div className="lg:col-span-9 flex flex-col gap-6">
+            {/* Visualizer and Controls */}
+            <motion.div 
+              className="bg-black-glass backdrop-blur-xl rounded-xl p-6 shadow-xl border border-white-glass flex-grow flex flex-col justify-between"
+              variants={itemVariants}
+            >
+              <div className="flex-grow flex items-center justify-center relative">
+                <canvas
+                  id="visualizer"
+                  className="w-full h-full rounded-lg bg-transparent"
+                  width="800"
+                  height="300"
+                />
+                {/* Voting Controls */}
                 {sharingUser && !isSharing && (
                   <div className="absolute top-3 right-3 z-10 flex items-center space-x-3 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-purple-500/30 shadow-lg">
-                    {/* Upvote Button */}
                     <motion.button 
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
@@ -1176,23 +1074,12 @@ const Room: React.FC = () => {
                       onClick={() => handleVote('up')}
                       disabled={isSharing}
                     >
-                      <motion.svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        className="h-5 w-5" 
-                        fill="currentColor" 
-                        viewBox="0 0 24 24" 
-                        animate={hasVoted === 'up' ? { scale: [1, 1.2, 1] } : {}}
-                        transition={{ duration: 0.3 }}
-                      >
+                      <motion.svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" animate={hasVoted === 'up' ? { scale: [1, 1.2, 1] } : {}} transition={{ duration: 0.3 }}>
                         <path d="M12 3l8 8h-6v10h-4v-10h-6l8-8z" />
                       </motion.svg>
                       <span className="ml-1 font-semibold text-sm">{sharingUser.upvotes || 0}</span>
                     </motion.button>
-                    
-                    {/* Divider */}
                     <div className="h-6 w-px bg-purple-500/30"></div>
-                    
-                    {/* Downvote Button */}
                     <motion.button 
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
@@ -1200,87 +1087,150 @@ const Room: React.FC = () => {
                       onClick={() => handleVote('down')}
                       disabled={isSharing}
                     >
-                      <motion.svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        className="h-5 w-5" 
-                        fill="currentColor" 
-                        viewBox="0 0 24 24" 
-                        animate={hasVoted === 'down' ? { scale: [1, 1.2, 1] } : {}}
-                        transition={{ duration: 0.3 }}
-                      >
+                      <motion.svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" animate={hasVoted === 'down' ? { scale: [1, 1.2, 1] } : {}} transition={{ duration: 0.3 }}>
                         <path d="M12 21l-8-8h6v-10h4v10h6l-8 8z" />
                       </motion.svg>
                       <span className="ml-1 font-semibold text-sm">{sharingUser.downvotes || 0}</span>
                     </motion.button>
                   </div>
                 )}
-                
-                {/* Show vote counts to the sharer on visualizer */}
                 {isSharing && sharingUser && (
                   <div className="absolute top-3 right-3 z-10 flex items-center space-x-3 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-purple-500/30 shadow-lg">
-                    <div className="flex items-center">
-                      <div className="p-1.5 flex items-center justify-center text-green-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 3l8 8h-6v10h-4v-10h-6l8-8z" />
-                        </svg>
-                        <span className="ml-1 font-semibold text-sm">{sharingUser.upvotes || 0}</span>
-                      </div>
+                    <div className="flex items-center p-1.5 text-green-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3l8 8h-6v10h-4v-10h-6l8-8z" /></svg>
+                      <span className="ml-1 font-semibold text-sm">{sharingUser.upvotes || 0}</span>
                     </div>
-                    
                     <div className="h-6 w-px bg-purple-500/30"></div>
-                    
-                    <div className="flex items-center">
-                      <div className="p-1.5 flex items-center justify-center text-red-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 21l-8-8h6v-10h4v10h6l-8 8z" />
-                        </svg>
-                        <span className="ml-1 font-semibold text-sm">{sharingUser.downvotes || 0}</span>
-                      </div>
+                    <div className="flex items-center p-1.5 text-red-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21l-8-8h6v-10h4v10h6l-8 8z" /></svg>
+                      <span className="ml-1 font-semibold text-sm">{sharingUser.downvotes || 0}</span>
                     </div>
                   </div>
                 )}
-                
-                <canvas
-                  id="visualizer"
-                  className="w-full h-64 rounded-lg bg-transparent"
-                  width="800"
-                  height="200"
-                />
               </div>
-            </div>
-          </div>
-
-          {/* Users List - Always visible */}
-          <motion.div 
-            className="bg-black-glass backdrop-blur-xl rounded-xl p-6 shadow-xl border border-white-glass transition-all duration-300 hover:border-blue-500/30 h-fit"
-            variants={itemVariants}
-          >
-            <h2 className="text-2xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
-              Connected Users ({users.length})
-            </h2>
-            <div className="space-y-4">
-              {users.map((user) => (
-                <motion.div
-                  key={user.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className={`p-4 rounded-lg backdrop-blur-sm transition-all duration-300 ${
-                    user.isSharing
-                      ? 'bg-purple-500/20 border border-purple-500 shadow-lg shadow-purple-500/20'
-                      : 'bg-gray-700/50 hover:bg-gray-700/70 border border-gray-600/20 hover:border-gray-500/30'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{user.name}</span>
+              
+              <div className="pt-4 border-t border-white-glass mt-4">
+                <div className="flex items-center justify-center gap-4">
+                  {!sharingUser && (
+                    <>
+                      <button
+                        onClick={() => setShareType('system')}
+                        disabled={isMobile}
+                        className={`px-4 py-2 rounded-lg transition-colors ${shareType === 'system' ? 'bg-purple-500 text-white' : isMobile ? 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-60' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                      >
+                        System Audio
+                        {isMobile && <span className="block text-xs mt-1">Not on mobile</span>}
+                      </button>
+                      <button
+                        onClick={() => setShareType('microphone')}
+                        className={`px-4 py-2 rounded-lg transition-colors ${shareType === 'microphone' ? 'bg-purple-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                      >
+                        Microphone
+                      </button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="px-6 py-3 rounded-lg shadow-lg text-lg font-semibold bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 transition-all duration-300 flex items-center justify-center space-x-2"
+                        onClick={startSharing}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          {shareType === 'microphone' ? (
+                            <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                          ) : (
+                            <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                          )}
+                        </svg>
+                        <span>Share Audio</span>
+                      </motion.button>
+                    </>
+                  )}
+                  {isSharing && (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="px-6 py-3 rounded-lg shadow-lg text-lg font-semibold bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transition-all duration-300 flex items-center justify-center space-x-2"
+                      onClick={stopSharing}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+                      </svg>
+                      <span>Stop Sharing</span>
+                    </motion.button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+            
+            {/* Users List */}
+            <motion.div 
+              className="bg-black-glass backdrop-blur-xl rounded-xl p-6 shadow-xl border border-white-glass"
+              variants={itemVariants}
+            >
+              <h2 className="text-xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
+                Connected Users ({users.length})
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {users.map((user) => (
+                  <motion.div
+                    key={user.id}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className={`p-3 rounded-lg text-center backdrop-blur-sm transition-all duration-300 ${
+                      user.isSharing
+                        ? 'bg-purple-500/20 border border-purple-500 shadow-lg shadow-purple-500/20'
+                        : 'bg-gray-700/50 border border-gray-600/20'
+                    }`}
+                  >
+                    <span className="font-medium text-sm">{user.name}</span>
                     {user.isSharing && (
-                      <span className="px-2 py-1 text-sm bg-purple-500 rounded-full">
-                        Sharing Audio
+                      <span className="block text-xs text-purple-300 mt-1">
+                        Sharing
                       </span>
                     )}
-                  </div>
-                </motion.div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Chat Panel */}
+          <motion.div 
+            className="lg:col-span-3 bg-black-glass backdrop-blur-xl rounded-xl shadow-xl border border-white-glass flex flex-col h-full"
+            variants={itemVariants}
+          >
+            <div className="p-4 border-b border-white-glass">
+              <h2 className="text-xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500">Live Chat</h2>
+            </div>
+            <div className="flex-grow p-4 overflow-y-auto">
+              {messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`chat-message mb-3 p-3 rounded-lg max-w-[85%] ${
+                    msg.username === (localStorage.getItem('username') || 'Anonymous')
+                      ? 'bg-purple-600 ml-auto text-right'
+                      : 'bg-gray-700'
+                  } ${msg.username === 'System' ? 'bg-gray-800 text-center w-full max-w-full' : ''}`}
+                >
+                  <div className="text-xs text-gray-400 mb-1">{msg.username}</div>
+                  <div className="text-sm">{msg.text}</div>
+                  <div className="text-xs text-gray-500 mt-1">{msg.timestamp}</div>
+                </div>
               ))}
+            </div>
+            <div className="p-4 border-t border-white-glass">
+              <form className="flex gap-2" onSubmit={handleSendMessage}>
+                <input
+                  type="text"
+                  value={""}
+                  onChange={(e) => {}}
+                  placeholder="Type a message..."
+                  className="flex-grow bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                />
+                <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                  Send
+                </button>
+              </form>
             </div>
           </motion.div>
         </div>
