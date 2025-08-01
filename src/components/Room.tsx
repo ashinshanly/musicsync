@@ -65,6 +65,7 @@ const Room: React.FC = () => {
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const visualizedStreamIdRef = useRef<string | null>(null);
+  const resizeCanvasListenerRef = useRef<(() => void) | null>(null);
 
   const handleSendMessage = (message: string) => {
     if (socketRef.current && message.trim()) {
@@ -826,7 +827,18 @@ const Room: React.FC = () => {
     visualizedStreamIdRef.current = stream.id; // Mark this stream as visualized
 
     const canvas = document.getElementById("visualizer") as HTMLCanvasElement;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
+
+    const resizeCanvas = () => {
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+    };
+
+    resizeCanvasListenerRef.current = resizeCanvas;
+    window.addEventListener("resize", resizeCanvasListenerRef.current);
+    resizeCanvas();
+
     const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
 
     // Track time for wave effects
@@ -956,6 +968,10 @@ const Room: React.FC = () => {
       analyserRef.current.disconnect();
       analyserRef.current = null;
       console.log("Analyser node disconnected.");
+    }
+    if (resizeCanvasListenerRef.current) {
+      window.removeEventListener("resize", resizeCanvasListenerRef.current);
+      resizeCanvasListenerRef.current = null;
     }
     visualizedStreamIdRef.current = null; // Reset visualized stream ID
     console.log("Visualized stream ID reset.");
@@ -1098,15 +1114,15 @@ const Room: React.FC = () => {
 
   return (
     <motion.div
-      className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-900 text-white p-4 md:p-8"
+      className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-900 text-white p-4 md:p-8 flex flex-col"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
       exit="exit"
     >
       <Toaster position="top-right" />
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
+      <div className="max-w-7xl mx-auto w-full flex flex-col flex-grow">
+        <div className="flex justify-between items-center mb-6 flex-shrink-0">
           <div className="flex items-center space-x-4">
             <Logo size={50} />
             <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
@@ -1140,7 +1156,7 @@ const Room: React.FC = () => {
           </motion.button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-120px)]">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 flex-grow min-h-0">
           {/* Main Content */}
           <div className="lg:col-span-9 flex flex-col gap-6">
             {/* Visualizer and Controls */}
@@ -1152,8 +1168,6 @@ const Room: React.FC = () => {
                 <canvas
                   id="visualizer"
                   className="w-full h-full rounded-lg bg-transparent"
-                  width="800"
-                  height="300"
                 />
                 {/* Voting Controls */}
                 {sharingUser && !isSharing && (
@@ -1396,7 +1410,7 @@ const Room: React.FC = () => {
             </div>
             <div className="p-4 border-t border-white-glass">
               <form
-                className="flex gap-2"
+                className="flex items-center gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
                   handleSendMessage(newMessage);
@@ -1412,9 +1426,22 @@ const Room: React.FC = () => {
                 />
                 <button
                   type="submit"
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold p-2 rounded-lg transition-colors flex-shrink-0"
                 >
-                  Send
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 12h14M12 5l7 7-7 7"
+                    />
+                  </svg>
                 </button>
               </form>
             </div>
