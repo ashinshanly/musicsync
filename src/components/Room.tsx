@@ -1185,7 +1185,7 @@ const Room: React.FC = () => {
 
           {/* Chat Panel */}
           <motion.div 
-            className="lg:col-span-3 bg-black-glass backdrop-blur-xl rounded-xl shadow-xl border border-white-glass flex flex-col h-full"
+            className="lg:col-span-3 bg-black-glass backdrop-blur-xl rounded-xl shadow-xl border border-white-glass flex flex-col h-full p-4"
             variants={itemVariants}
           >
             <div className="p-4 border-b border-white-glass">
