@@ -227,14 +227,14 @@ const Room: React.FC = () => {
     });
 
     socket.on('offer', async ({ offer, from }) => {
-      if (isSharing) { // Sharer receiving offer from a late-joiner
+      if (isSharingRef.current) { // Sharer receiving offer from a late-joiner
         let pc = peersRef.current.get(from);
         if (pc) pc.connection.close();
         pc = createPeerConnection(from);
         await pc.connection.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.connection.createAnswer();
         await pc.connection.setLocalDescription(answer);
-        socket.current.emit('answer', { answer, to: from });
+        socketRef.current?.emit('answer', { answer, to: from });
       } else { // Listener receiving offer from the sharer
         let pc = peersRef.current.get(from);
         if (pc) pc.connection.close();
@@ -243,7 +243,7 @@ const Room: React.FC = () => {
         await pc.connection.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.connection.createAnswer();
         await pc.connection.setLocalDescription(answer);
-        socket.current.emit('answer', { answer, to: from });
+        socketRef.current?.emit('answer', { answer, to: from });
       }
     });
 
