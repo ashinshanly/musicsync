@@ -185,7 +185,7 @@ const Room: React.FC = () => {
 
   useEffect(() => {
     // Initialize WebSocket connection
-    const socket = io(SOCKET_URL);
+    const socket = io(SOCKET_URL, { timeout: 60000 });
     socketRef.current = socket;
 
     let username = localStorage.getItem("username");
