@@ -26,6 +26,20 @@ const LiveRooms: React.FC = () => {
     useState<string>("Connecting...");
   const [isModalOpen, setIsModalOpen] = useState(false); // State for modal visibility
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null); // State to store selected room ID
+  const [currentJoke, setCurrentJoke] = useState(0);
+
+  const connectionJokes = [
+    "Waking up the server... ☕",
+    "Teaching electrons to dance... 💃",
+    "Convincing the server to wake up... 😴",
+    "Bribing the hamsters that power our servers... 🐹",
+    "Calibrating the flux capacitor... ⚡",
+    "Warming up the quantum entanglement... 🔬",
+    "Downloading more RAM... 💾",
+    "Untangling the internet cables... 🕸️",
+    "Asking nicely... 🙏",
+    "Summoning the cloud spirits... ☁️",
+  ];
 
   useEffect(() => {
     console.log("Initializing socket connection to:", SOCKET_URL);
@@ -33,9 +47,9 @@ const LiveRooms: React.FC = () => {
     try {
       socketRef.current = io(SOCKET_URL, {
         transports: ["websocket", "polling"],
-        reconnectionAttempts: 3,
-        reconnectionDelay: 1000,
-        timeout: 10000,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000,
+        timeout: 60000, // Increased to 60 seconds for Render wake-up
       });
 
       const socket = socketRef.current;
@@ -74,17 +88,13 @@ const LiveRooms: React.FC = () => {
         setLoading(false);
       });
 
-      // Add a timeout for the initial connection
-      const connectionTimeout = setTimeout(() => {
-        if (!socket.connected) {
-          console.log("Connection timeout");
-          setError("Connection timeout. Please try again.");
-          setLoading(false);
-        }
-      }, 10000);
+      // Rotate jokes every 3 seconds while connecting
+      const jokeInterval = setInterval(() => {
+        setCurrentJoke((prev) => (prev + 1) % connectionJokes.length);
+      }, 3000);
 
       return () => {
-        clearTimeout(connectionTimeout);
+        clearInterval(jokeInterval);
         if (socket) {
           console.log("Cleaning up socket connection");
           socket.disconnect();
@@ -146,7 +156,18 @@ const LiveRooms: React.FC = () => {
             }}
           />
         </div>
-        <p className="text-sm text-gray-400 mt-3">{connectionStatus}</p>
+        <motion.p
+          key={currentJoke}
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -5 }}
+          className="text-xs text-gray-400 mt-3 italic"
+        >
+          {connectionJokes[currentJoke]}
+        </motion.p>
+        <p className="text-xs text-gray-500 mt-1">
+          (Server might be waking up from sleep... this can take up to a minute)
+        </p>
       </div>
     );
   }
