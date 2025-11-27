@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { io, Socket } from "socket.io-client";
 import toast, { Toaster } from "react-hot-toast";
 import Logo from "./Logo";
-import Visualizer from "./Visualizer";
+import Visualizer, { VisualizerStyle } from "./Visualizer";
 import Chat from "./Chat";
 
 interface User {
@@ -67,6 +67,10 @@ const Room: React.FC = () => {
   const [messages, setMessages] = useState<{ id: string; username: string; text: string; timestamp: string }[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected" | "failed">("connecting");
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [visualizerStyle, setVisualizerStyle] = useState<VisualizerStyle>("circular");
+
+  const visualizerContainerRef = useRef<HTMLDivElement>(null);
 
   const isSharingRef = useRef(isSharing);
   useEffect(() => {
@@ -442,6 +446,34 @@ const Room: React.FC = () => {
       .catch(() => toast.error("Failed to copy link"));
   };
 
+  const toggleFullscreen = () => {
+    if (!visualizerContainerRef.current) return;
+
+    if (!isFullscreen) {
+      visualizerContainerRef.current.requestFullscreen().then(() => {
+        setIsFullscreen(true);
+      }).catch(err => {
+        console.error("Error attempting to enable fullscreen:", err);
+        toast.error("Could not enter fullscreen mode");
+      });
+    } else {
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false);
+      });
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
   return (
     <motion.div
       className="min-h-screen bg-gradient-to-br from-gray-950 to-gray-900 text-white p-4 md:p-8 flex flex-col"
@@ -481,7 +513,10 @@ const Room: React.FC = () => {
           {/* Main Content Area */}
           <div className="lg:col-span-8 flex flex-col gap-6">
             {/* Visualizer Card */}
-            <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-1 shadow-2xl border border-white/10 flex-grow relative overflow-hidden flex flex-col">
+            <div
+              ref={visualizerContainerRef}
+              className={`bg-black/40 backdrop-blur-xl rounded-2xl p-1 shadow-2xl border border-white/10 flex-grow relative overflow-hidden flex flex-col ${isFullscreen ? 'fullscreen-visualizer' : ''}`}
+            >
               <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-blue-900/20 z-0" />
 
               <div className="relative z-10 flex-grow flex items-center justify-center min-h-[300px]">
@@ -489,6 +524,7 @@ const Room: React.FC = () => {
                   <Visualizer
                     stream={isSharing ? localStreamRef.current! : remoteStream!}
                     isSharing={isSharing}
+                    style={visualizerStyle}
                   />
                 ) : (
                   <div className="text-center text-gray-400">
@@ -509,6 +545,70 @@ const Room: React.FC = () => {
                       </svg>
                     </div>
                     <p>Waiting for audio stream...</p>
+                  </div>
+                )}
+
+                {/* Fullscreen Controls Overlay - Only show when there's audio */}
+                {((isSharing && localStreamRef.current) || remoteStream) && (
+                  <div className="absolute top-4 left-4 flex flex-col gap-2">
+                    {/* Visualizer Style Picker */}
+                    <div className="bg-black/60 backdrop-blur-md rounded-lg border border-white/10 p-2">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setVisualizerStyle("circular")}
+                          className={`p-2 rounded-lg transition-all ${visualizerStyle === "circular" ? "bg-purple-500/40 text-white" : "text-gray-400 hover:text-white hover:bg-white/10"}`}
+                          title="Circular"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setVisualizerStyle("bars")}
+                          className={`p-2 rounded-lg transition-all ${visualizerStyle === "bars" ? "bg-purple-500/40 text-white" : "text-gray-400 hover:text-white hover:bg-white/10"}`}
+                          title="Bars"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setVisualizerStyle("waves")}
+                          className={`p-2 rounded-lg transition-all ${visualizerStyle === "waves" ? "bg-purple-500/40 text-white" : "text-gray-400 hover:text-white hover:bg-white/10"}`}
+                          title="Waves"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setVisualizerStyle("particles")}
+                          className={`p-2 rounded-lg transition-all ${visualizerStyle === "particles" ? "bg-purple-500/40 text-white" : "text-gray-400 hover:text-white hover:bg-white/10"}`}
+                          title="Particles"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Fullscreen Toggle */}
+                    <button
+                      onClick={toggleFullscreen}
+                      className="bg-black/60 backdrop-blur-md p-3 rounded-lg border border-white/10 text-gray-400 hover:text-white transition-colors"
+                      title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+                    >
+                      {isFullscreen ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 01-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
                   </div>
                 )}
 

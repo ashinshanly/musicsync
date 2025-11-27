@@ -22,16 +22,16 @@ body {
 }
 
 .neon-button {
-  @apply px-6 py-2 rounded-lg bg-gradient-to-r from-accent-1 via-accent-2 to-accent-1 bg-300%
-         hover:shadow-[0_0_20px_rgba(0,212,255,0.5)] transition-all duration-500
-         font-syncopate font-bold text-sm tracking-wider uppercase
-         relative overflow-hidden;
+  @apply px-6 py-2 rounded-lg bg-gradient-to-r from-accent-1 via-accent-2 to-accent-1 bg-300% transition-all duration-500 font-syncopate font-bold text-sm tracking-wider uppercase relative overflow-hidden;
+}
+
+.neon-button:hover {
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
 }
 
 .neon-button::before {
   content: "";
-  @apply absolute inset-0 bg-gradient-to-r from-accent-1 via-accent-2 to-accent-1 bg-300% opacity-0 
-         transition-opacity duration-500;
+  @apply absolute inset-0 bg-gradient-to-r from-accent-1 via-accent-2 to-accent-1 bg-300% opacity-0 transition-opacity duration-500;
 }
 
 .neon-button:hover::before {
@@ -39,16 +39,16 @@ body {
 }
 
 .room-card {
-  @apply bg-opacity-5 bg-white backdrop-blur-md rounded-xl p-6
-         border border-opacity-10 border-white 
-         transition-all duration-500 hover:shadow-[0_0_30px_rgba(0,212,255,0.1)]
-         relative overflow-hidden;
+  @apply bg-opacity-5 bg-white backdrop-blur-md rounded-xl p-6 border border-opacity-10 border-white transition-all duration-500 relative overflow-hidden;
+}
+
+.room-card:hover {
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.1);
 }
 
 .room-card::before {
   content: "";
-  @apply absolute inset-0 bg-gradient-to-br from-accent-1/5 to-accent-2/5 opacity-0 
-         transition-opacity duration-500;
+  @apply absolute inset-0 bg-gradient-to-br from-accent-1/5 to-accent-2/5 opacity-0 transition-opacity duration-500;
 }
 
 .room-card:hover::before {
@@ -56,9 +56,7 @@ body {
 }
 
 .input-field {
-  @apply w-full p-3 rounded-lg bg-white/5 border border-white/10 
-         focus:border-accent-1/50 outline-none transition-all duration-300
-         font-space-grotesk tracking-wide;
+  @apply w-full p-3 rounded-lg bg-white/5 border border-white/10 focus:border-accent-1/50 outline-none transition-all duration-300 font-space-grotesk tracking-wide;
 }
 
 .heading-primary {
@@ -70,8 +68,8 @@ body {
 }
 
 .audio-visualizer {
-  @apply h-32 w-full rounded-lg overflow-hidden opacity-90
-         shadow-[0_0_30px_rgba(0,212,255,0.2)];
+  @apply h-32 w-full rounded-lg overflow-hidden opacity-90;
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.2);
 }
 
 /* Custom Scrollbar */
@@ -91,4 +89,35 @@ body {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(139, 92, 246, 0.5);
+}
+
+/* Fullscreen Visualizer Styles */
+.fullscreen-visualizer {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+
+.fullscreen-visualizer canvas {
+  border-radius: 0 !important;
+}
+
+/* Fade in animation for controls */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fullscreen-visualizer .absolute {
+  animation: fadeIn 0.3s ease-out;
 }
