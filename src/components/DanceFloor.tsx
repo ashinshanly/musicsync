@@ -11,7 +11,7 @@ interface User {
 
 interface DanceFloorProps {
     users: User[];
-    stream?: MediaStream;
+    analyser: AnalyserNode | null;
     isSharing: boolean;
     currentUserId?: string;
 }
@@ -38,61 +38,30 @@ const getAvatar = (username: string) => {
 // Fix for TS2786: 'AnimatePresence' cannot be used as a JSX component.
 const AnimatePresenceWrapper = AnimatePresence as unknown as React.FC<React.PropsWithChildren<any>>;
 
-const DanceFloor: React.FC<DanceFloorProps> = ({ users, stream, isSharing, currentUserId }) => {
+const DanceFloor: React.FC<DanceFloorProps> = ({ users, analyser, isSharing, currentUserId }) => {
     const [beatIntensity, setBeatIntensity] = useState(0);
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const analyserRef = useRef<AnalyserNode | null>(null);
-    const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
     const animationFrameRef = useRef<number>();
 
     // Initialize Audio Analysis
     useEffect(() => {
-        if (!stream) {
+        if (!analyser) {
             setBeatIntensity(0);
             return;
         }
 
-        const initAudio = () => {
-            try {
-                if (!audioContextRef.current) {
-                    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-                }
-
-                if (audioContextRef.current.state === "suspended") {
-                    audioContextRef.current.resume();
-                }
-
-                // Create analyser if not exists
-                if (!analyserRef.current) {
-                    analyserRef.current = audioContextRef.current.createAnalyser();
-                    analyserRef.current.fftSize = 256; // Smaller FFT for performance
-                    analyserRef.current.smoothingTimeConstant = 0.8;
-                }
-
-                // Connect stream
-                if (sourceRef.current) {
-                    sourceRef.current.disconnect();
-                }
-                sourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
-                sourceRef.current.connect(analyserRef.current);
-
-                analyze();
-            } catch (err) {
-                console.error("Error initializing dance floor audio:", err);
-            }
-        };
-
         const analyze = () => {
-            if (!analyserRef.current) return;
+            if (!analyser) return;
 
-            const bufferLength = analyserRef.current.frequencyBinCount;
+            const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
-            analyserRef.current.getByteFrequencyData(dataArray);
+            analyser.getByteFrequencyData(dataArray);
 
             // Focus on bass frequencies (approx 20Hz - 150Hz)
-            // With fftSize 256 and sampleRate 44100, each bin is ~172Hz
-            // So we check the first few bins
-            const bassEnergy = dataArray.slice(0, 4).reduce((a, b) => a + b, 0) / 4;
+            // With fftSize 1024 and sampleRate 44100, each bin is ~43Hz
+            // Previous fftSize was 256 (~172Hz per bin)
+            // So we need to check the first ~4 bins to cover up to ~172Hz
+            // Let's check the first 8 bins to be safe and get a good bass range (0-344Hz)
+            const bassEnergy = dataArray.slice(0, 8).reduce((a, b) => a + b, 0) / 8;
 
             // Normalize to 0-1 range with a threshold
             const threshold = 100; // Minimum energy to trigger beat
@@ -110,18 +79,14 @@ const DanceFloor: React.FC<DanceFloorProps> = ({ users, stream, isSharing, curre
             animationFrameRef.current = requestAnimationFrame(analyze);
         };
 
-        initAudio();
+        analyze();
 
         return () => {
             if (animationFrameRef.current) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
-            if (sourceRef.current) {
-                sourceRef.current.disconnect();
-            }
-            // Don't close context as it might be shared or expensive to recreate
         };
-    }, [stream]);
+    }, [analyser]);
 
     // Calculate grid columns based on user count for optimal layout
     const gridStyle = useMemo(() => {
@@ -144,7 +109,7 @@ const DanceFloor: React.FC<DanceFloorProps> = ({ users, stream, isSharing, curre
                 className="absolute inset-0 pointer-events-none transition-opacity duration-300"
                 style={{
                     background: `radial-gradient(circle at 50% 50%, rgba(139, 92, 246, ${0.1 + beatIntensity * 0.2}) 0%, transparent 70%)`,
-                    opacity: stream ? 1 : 0.3
+                    opacity: analyser ? 1 : 0.3
                 }}
             />
 
@@ -158,7 +123,7 @@ const DanceFloor: React.FC<DanceFloorProps> = ({ users, stream, isSharing, curre
                 </h3>
 
                 {/* Vibe Indicator */}
-                {stream && (
+                {analyser && (
                     <div className="flex items-center gap-2">
                         <div className="h-2 w-20 bg-white/10 rounded-full overflow-hidden">
                             <div
@@ -206,14 +171,14 @@ const DanceFloor: React.FC<DanceFloorProps> = ({ users, stream, isSharing, curre
                                     <div
                                         className="text-4xl md:text-5xl mb-2 transition-transform duration-75 will-change-transform"
                                         style={{
-                                            transform: stream
+                                            transform: analyser
                                                 ? `scale(${1 + beatIntensity * 0.3}) translateY(${beatIntensity * -10}px)`
                                                 : 'none',
                                             transitionDelay: `${delay}s`
                                         }}
                                     >
                                         {/* Idle Animation when no music */}
-                                        <div className={!stream ? "animate-float" : ""}>
+                                        <div className={!analyser ? "animate-float" : ""}>
                                             {avatar}
                                         </div>
                                     </div>
@@ -228,7 +193,7 @@ const DanceFloor: React.FC<DanceFloorProps> = ({ users, stream, isSharing, curre
                                     </div>
 
                                     {/* Glow Effect on Beat */}
-                                    {stream && (
+                                    {analyser && (
                                         <div
                                             className="absolute inset-0 rounded-2xl bg-purple-500/20 blur-xl transition-opacity duration-75 pointer-events-none"
                                             style={{ opacity: beatIntensity }}

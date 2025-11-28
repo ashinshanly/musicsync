@@ -9,6 +9,7 @@ import Logo from "./Logo";
 import Visualizer, { VisualizerStyle } from "./Visualizer";
 import Chat from "./Chat";
 import DanceFloor from "./DanceFloor";
+import { useAudioAnalysis } from "../hooks/useAudioAnalysis";
 
 interface User {
   id: string;
@@ -83,6 +84,10 @@ const Room: React.FC = () => {
   const peersRef = useRef<Map<string, PeerConnection>>(new Map());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const iceCandidateQueueRef = useRef<Map<string, RTCIceCandidate[]>>(new Map());
+
+  // Unified Audio Engine: Create a single shared analyser from the active stream
+  const activeStream = isSharing ? localStreamRef.current : remoteStream;
+  const analyser = useAudioAnalysis(activeStream || null);
 
   const handleSendMessage = (message: string) => {
     if (socketRef.current && message.trim()) {
@@ -597,7 +602,7 @@ const Room: React.FC = () => {
               <div className="relative z-10 flex-grow flex items-center justify-center min-h-[300px]">
                 {(isSharing && localStreamRef.current) || (remoteStream) ? (
                   <Visualizer
-                    stream={isSharing ? localStreamRef.current! : remoteStream!}
+                    analyser={analyser}
                     isSharing={isSharing}
                     style={visualizerStyle}
                   />
@@ -758,7 +763,7 @@ const Room: React.FC = () => {
             {/* Dance Floor (Replaces Users List) */}
             <DanceFloor
               users={users}
-              stream={isSharing ? localStreamRef.current : remoteStream || undefined}
+              analyser={analyser}
               isSharing={isSharing || !!remoteStream}
               currentUserId={socketRef.current?.id}
             />

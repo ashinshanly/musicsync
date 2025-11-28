@@ -3,57 +3,28 @@ import React, { useEffect, useRef } from "react";
 export type VisualizerStyle = "circular" | "bars" | "waves" | "particles";
 
 interface VisualizerProps {
-  stream: MediaStream;
+  analyser: AnalyserNode | null;
   isSharing: boolean;
   style?: VisualizerStyle;
 }
 
-const Visualizer: React.FC<VisualizerProps> = ({ stream, isSharing, style = "circular" }) => {
+const Visualizer: React.FC<VisualizerProps> = ({ analyser, isSharing, style = "circular" }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const animationFrameRef = useRef<number>();
 
   useEffect(() => {
-    if (!stream || !canvasRef.current) return;
-
-    const initAudio = () => {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext ||
-          (window as any).webkitAudioContext)();
-      }
-
-      if (audioContextRef.current.state === "suspended") {
-        audioContextRef.current.resume();
-      }
-
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 1024;
-      analyserRef.current.smoothingTimeConstant = 0.8;
-
-      try {
-        sourceNodeRef.current =
-          audioContextRef.current.createMediaStreamSource(stream);
-        sourceNodeRef.current.connect(analyserRef.current);
-      } catch (err) {
-        console.error("Error creating media stream source:", err);
-        return;
-      }
-
-      draw();
-    };
+    if (!analyser || !canvasRef.current) return;
 
     let previousValues: number[] = [];
 
     const draw = () => {
-      if (!canvasRef.current || !analyserRef.current) return;
+      if (!canvasRef.current || !analyser) return;
 
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      const bufferLength = analyserRef.current.frequencyBinCount;
+      const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
 
       if (previousValues.length === 0) {
@@ -61,9 +32,9 @@ const Visualizer: React.FC<VisualizerProps> = ({ stream, isSharing, style = "cir
       }
 
       const render = () => {
-        if (!analyserRef.current || !canvasRef.current) return;
+        if (!analyser || !canvasRef.current) return;
 
-        analyserRef.current.getByteFrequencyData(dataArray);
+        analyser.getByteFrequencyData(dataArray);
 
         const width = canvas.width;
         const height = canvas.height;
@@ -94,9 +65,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ stream, isSharing, style = "cir
       render();
     };
 
-    initAudio();
-
-    initAudio();
+    draw();
 
     const handleResize = () => {
       if (canvasRef.current) {
@@ -122,14 +91,8 @@ const Visualizer: React.FC<VisualizerProps> = ({ stream, isSharing, style = "cir
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      if (sourceNodeRef.current) {
-        sourceNodeRef.current.disconnect();
-      }
-      if (analyserRef.current) {
-        analyserRef.current.disconnect();
-      }
     };
-  }, [stream, style]);
+  }, [analyser, style]);
 
   return (
     <canvas
