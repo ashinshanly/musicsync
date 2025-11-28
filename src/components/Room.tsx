@@ -9,6 +9,7 @@ import Logo from "./Logo";
 import Visualizer, { VisualizerStyle } from "./Visualizer";
 import Chat from "./Chat";
 import DanceFloor from "./DanceFloor";
+import LiveReactions from "./LiveReactions";
 import { useAudioAnalysis } from "../hooks/useAudioAnalysis";
 
 interface User {
@@ -71,6 +72,8 @@ const Room: React.FC = () => {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [visualizerStyle, setVisualizerStyle] = useState<VisualizerStyle>("circular");
+  const [reactions, setReactions] = useState<{ id: string; emoji: string; x: number }[]>([]);
+  const [canReact, setCanReact] = useState(true);
 
   const visualizerContainerRef = useRef<HTMLDivElement>(null);
 
@@ -152,6 +155,24 @@ const Room: React.FC = () => {
 
     setHasVoted(voteType);
     toast.success(voteType === "up" ? "Upvoted!" : "Downvoted");
+  };
+
+  const handleReaction = (emoji: string) => {
+    if (!socketRef.current) {
+      toast.error("Not connected to room");
+      return;
+    }
+
+    if (!canReact) {
+      return; // Silent - user sees visual dimming
+    }
+
+    // Send reaction to server
+    socketRef.current.emit("reaction", { emoji, roomId });
+
+    // Rate limiting: 1 reaction per second
+    setCanReact(false);
+    setTimeout(() => setCanReact(true), 1000);
   };
 
   useEffect(() => {
@@ -289,6 +310,21 @@ const Room: React.FC = () => {
 
     socket.on("chat-message", (message) => {
       setMessages((prev) => [...prev, message]);
+    });
+
+    socket.on("reaction", ({ emoji, userId }: { emoji: string; userId: string }) => {
+      // Generate random starting position
+      const reaction = {
+        id: `${userId}-${Date.now()}-${Math.random()}`,
+        emoji,
+        x: Math.random() * 80 + 10, // 10-90% to avoid edges
+      };
+
+      setReactions((prev) => {
+        const updated = [...prev, reaction];
+        // Keep only last 50 reactions to prevent memory leak
+        return updated.slice(-50);
+      });
     });
 
     return () => {
@@ -778,6 +814,33 @@ const Room: React.FC = () => {
                 currentUser={localStorage.getItem("username") || "Anonymous"}
               />
             </div>
+          </div>
+        </div>
+
+        {/* Live Reactions Overlay */}
+        <LiveReactions reactions={reactions} />
+
+        {/* Reaction Buttons - Floating at bottom center */}
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-40">
+          <div className="flex items-center gap-2 bg-black/20 backdrop-blur-md rounded-full px-4 py-2 border border-white/10 shadow-lg">
+            {["🔥", "💯", "❤️", "🎵", "✨", "🎉"].map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => handleReaction(emoji)}
+                disabled={!canReact}
+                className={`text-xl transition-all duration-300 hover:scale-110 active:scale-90 ${!canReact
+                  ? "opacity-20 cursor-not-allowed"
+                  : "opacity-50 hover:opacity-100 cursor-pointer"
+                  }`}
+                style={{
+                  filter: canReact ? "none" : "grayscale(1)",
+                  textShadow: "0 0 10px rgba(139, 92, 246, 0.3)",
+                }}
+                title={`React with ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
           </div>
         </div>
       </div>

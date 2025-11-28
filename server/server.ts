@@ -227,6 +227,23 @@ io.on("connection", (socket) => {
       io.to(roomId).emit("chat-message", message);
     },
   );
+
+  // Handle reactions
+  socket.on(
+    "reaction",
+    ({ emoji, roomId }: { emoji: string; roomId: string }) => {
+      // Validate emoji (simple whitelist)
+      const allowedEmojis = ["🔥", "💯", "❤️", "🎵", "✨", "🎉"];
+      if (!allowedEmojis.includes(emoji)) {
+        console.log(`Invalid emoji received: ${emoji}`);
+        return;
+      }
+
+      console.log(`Server: Broadcasting reaction ${emoji} to room ${roomId}`);
+      // Broadcast to all users in the room (including sender for immediate feedback)
+      io.to(roomId).emit("reaction", { emoji, userId: socket.id });
+    },
+  );
 });
 
 // Helper functions
