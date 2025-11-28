@@ -92,6 +92,7 @@ body {
 }
 
 /* Fullscreen Visualizer Styles */
+/* Fullscreen Visualizer Styles */
 .fullscreen-visualizer {
   width: 100vw !important;
   height: 100vh !important;
@@ -99,10 +100,30 @@ body {
   max-height: 100vh !important;
   margin: 0 !important;
   border-radius: 0 !important;
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  z-index: 9999;
 }
 
-.fullscreen-visualizer canvas {
+.mobile-fullscreen-visualizer {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999 !important;
+  margin: 0 !important;
+  padding: 0 !important;
   border-radius: 0 !important;
+  overflow: hidden !important;
+  background-color: #000 !important;
+}
+
+.fullscreen-visualizer canvas,
+.mobile-fullscreen-visualizer canvas {
+  border-radius: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* Fade in animation for controls */

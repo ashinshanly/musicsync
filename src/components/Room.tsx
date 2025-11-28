@@ -81,6 +81,7 @@ const Room: React.FC = () => {
   const localStreamRef = useRef<MediaStream>();
   const peersRef = useRef<Map<string, PeerConnection>>(new Map());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const iceCandidateQueueRef = useRef<Map<string, RTCIceCandidate[]>>(new Map());
 
   const handleSendMessage = (message: string) => {
     if (socketRef.current && message.trim()) {
@@ -229,9 +230,17 @@ const Room: React.FC = () => {
 
     socket.on("offer", async ({ offer, from }) => {
       let pc = peersRef.current.get(from);
-      if (pc) pc.connection.close();
-
-      pc = createPeerConnection(from);
+      if (pc) {
+        // If we already have a connection, we might be renegotiating or it might be a collision.
+        // For simplicity in this app, we'll accept the new offer.
+        if (pc.connection.signalingState !== "stable") {
+          // If we are in the middle of our own negotiation, we might need to rollback or ignore.
+          // But for now, let's try to proceed.
+          console.log("Received offer while not stable, proceeding anyway");
+        }
+      } else {
+        pc = createPeerConnection(from);
+      }
 
       if (!isSharingRef.current) {
         // Listener receiving offer
@@ -239,6 +248,8 @@ const Room: React.FC = () => {
       }
 
       await pc.connection.setRemoteDescription(new RTCSessionDescription(offer));
+      await processCandidateQueue(from); // Process any queued candidates
+
       const answer = await pc.connection.createAnswer();
       await pc.connection.setLocalDescription(answer);
       socketRef.current?.emit("answer", { answer, to: from });
@@ -248,16 +259,24 @@ const Room: React.FC = () => {
       const pc = peersRef.current.get(from);
       if (pc) {
         await pc.connection.setRemoteDescription(new RTCSessionDescription(answer));
+        await processCandidateQueue(from); // Process any queued candidates
       }
     });
 
     socket.on("ice-candidate", async ({ candidate, from }) => {
       const pc = peersRef.current.get(from);
       if (pc && candidate) {
-        try {
-          await pc.connection.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
-          console.error("Error adding ICE candidate:", e);
+        if (pc.connection.remoteDescription) {
+          try {
+            await pc.connection.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.error("Error adding ICE candidate:", e);
+          }
+        } else {
+          // Queue candidate if remote description is not set yet
+          const queue = iceCandidateQueueRef.current.get(from) || [];
+          queue.push(new RTCIceCandidate(candidate));
+          iceCandidateQueueRef.current.set(from, queue);
         }
       }
     });
@@ -291,6 +310,22 @@ const Room: React.FC = () => {
       audioElement.remove();
       audioElementsRef.current.delete(userId);
     }
+    iceCandidateQueueRef.current.delete(userId);
+  };
+
+  const processCandidateQueue = async (userId: string) => {
+    const pc = peersRef.current.get(userId);
+    const queue = iceCandidateQueueRef.current.get(userId);
+    if (pc && queue) {
+      for (const candidate of queue) {
+        try {
+          await pc.connection.addIceCandidate(candidate);
+        } catch (e) {
+          console.error("Error processing queued ICE candidate:", e);
+        }
+      }
+      iceCandidateQueueRef.current.delete(userId);
+    }
   };
 
   const createPeerConnection = (userId: string) => {
@@ -317,6 +352,18 @@ const Room: React.FC = () => {
       if (pc.connectionState === "failed") {
         console.warn(`Connection failed with ${userId}, restarting ICE`);
         pc.restartIce();
+      }
+    };
+
+    pc.onnegotiationneeded = async () => {
+      try {
+        if (pc.signalingState !== "stable") return;
+        console.log("Negotiation needed for", userId);
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socketRef.current?.emit("offer", { offer, to: userId });
+      } catch (err) {
+        console.error("Error during negotiation:", err);
       }
     };
 
@@ -449,30 +496,57 @@ const Room: React.FC = () => {
   const toggleFullscreen = () => {
     if (!visualizerContainerRef.current) return;
 
-    if (!isFullscreen) {
-      visualizerContainerRef.current.requestFullscreen().then(() => {
-        setIsFullscreen(true);
-      }).catch(err => {
-        console.error("Error attempting to enable fullscreen:", err);
-        toast.error("Could not enter fullscreen mode");
-      });
+    if (isMobile) {
+      // Use CSS-based fallback for mobile devices (especially iOS)
+      setIsFullscreen(!isFullscreen);
     } else {
-      document.exitFullscreen().then(() => {
-        setIsFullscreen(false);
-      });
+      // Use native Fullscreen API for desktop
+      const doc = document as any;
+      const elem = visualizerContainerRef.current as any;
+
+      if (!isFullscreen) {
+        if (elem.requestFullscreen) {
+          elem.requestFullscreen().catch((err: any) => {
+            console.error("Error attempting to enable fullscreen:", err);
+            // Fallback to CSS mode if native fails
+            setIsFullscreen(true);
+          });
+        } else if (elem.webkitRequestFullscreen) {
+          elem.webkitRequestFullscreen();
+        } else {
+          // Fallback if no native API supported
+          setIsFullscreen(true);
+        }
+      } else {
+        if (doc.exitFullscreen) {
+          doc.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          doc.webkitExitFullscreen();
+        } else {
+          setIsFullscreen(false);
+        }
+      }
     }
   };
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const doc = document as any;
+      const isNativeFullscreen = !!(doc.fullscreenElement || doc.webkitFullscreenElement);
+      // Only update from event if we're not in mobile mode (which uses manual state)
+      if (!isMobile) {
+        setIsFullscreen(isNativeFullscreen);
+      }
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
     };
-  }, []);
+  }, [isMobile]);
 
   return (
     <motion.div
@@ -515,7 +589,7 @@ const Room: React.FC = () => {
             {/* Visualizer Card */}
             <div
               ref={visualizerContainerRef}
-              className={`bg-black/40 backdrop-blur-xl rounded-2xl p-1 shadow-2xl border border-white/10 flex-grow relative overflow-hidden flex flex-col ${isFullscreen ? 'fullscreen-visualizer' : ''}`}
+              className={`bg-black/40 backdrop-blur-xl rounded-2xl p-1 shadow-2xl border border-white/10 flex-grow relative overflow-hidden flex flex-col ${isFullscreen ? (isMobile ? 'mobile-fullscreen-visualizer' : 'fullscreen-visualizer') : ''}`}
             >
               <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-blue-900/20 z-0" />
 
