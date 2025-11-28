@@ -96,18 +96,29 @@ const Visualizer: React.FC<VisualizerProps> = ({ stream, isSharing, style = "cir
 
     initAudio();
 
+    initAudio();
+
     const handleResize = () => {
       if (canvasRef.current) {
-        canvasRef.current.width = canvasRef.current.clientWidth;
-        canvasRef.current.height = canvasRef.current.clientHeight;
+        const { clientWidth, clientHeight } = canvasRef.current;
+        // Only update if dimensions actually changed to avoid infinite loops
+        if (canvasRef.current.width !== clientWidth || canvasRef.current.height !== clientHeight) {
+          canvasRef.current.width = clientWidth;
+          canvasRef.current.height = clientHeight;
+        }
       }
     };
 
-    window.addEventListener("resize", handleResize);
+    const resizeObserver = new ResizeObserver(handleResize);
+    if (canvasRef.current) {
+      resizeObserver.observe(canvasRef.current);
+    }
+
+    // Initial size
     handleResize();
 
     return () => {
-      window.removeEventListener("resize", handleResize);
+      resizeObserver.disconnect();
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
@@ -343,4 +354,4 @@ function renderParticles(
   ctx.shadowBlur = 0;
 }
 
-export default Visualizer;
+export default React.memo(Visualizer);

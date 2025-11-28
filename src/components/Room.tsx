@@ -8,6 +8,7 @@ import toast, { Toaster } from "react-hot-toast";
 import Logo from "./Logo";
 import Visualizer, { VisualizerStyle } from "./Visualizer";
 import Chat from "./Chat";
+import DanceFloor from "./DanceFloor";
 
 interface User {
   id: string;
@@ -754,23 +755,13 @@ const Room: React.FC = () => {
               </div>
             </div>
 
-            {/* Users List */}
-            <div className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-white/10">
-              <h3 className="text-lg font-semibold mb-4 text-gray-300">Connected Users ({users.length})</h3>
-              <div className="flex flex-wrap gap-3">
-                {users.map((user) => (
-                  <div
-                    key={user.id}
-                    className={`px-4 py-2 rounded-full text-sm font-medium border ${user.isSharing
-                      ? "bg-purple-500/20 border-purple-500 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.3)]"
-                      : "bg-white/5 border-white/10 text-gray-400"
-                      }`}
-                  >
-                    {user.name} {user.id === socketRef.current?.id && "(You)"}
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Dance Floor (Replaces Users List) */}
+            <DanceFloor
+              users={users}
+              stream={isSharing ? localStreamRef.current : remoteStream || undefined}
+              isSharing={isSharing || !!remoteStream}
+              currentUserId={socketRef.current?.id}
+            />
           </div>
 
           {/* Chat Sidebar */}
