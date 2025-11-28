@@ -1,13 +1,13 @@
 {
   "files": {
-    "main.css": "/musicsync/static/css/main.badc0b75.css",
-    "main.js": "/musicsync/static/js/main.1ae1dc66.js",
+    "main.css": "/musicsync/static/css/main.128e5d49.css",
+    "main.js": "/musicsync/static/js/main.b48fd4e2.js",
     "static/js/206.e2ef01de.chunk.js": "/musicsync/static/js/206.e2ef01de.chunk.js",
     "static/media/logo.png": "/musicsync/static/media/logo.f44a2aab041dfac4af20.png",
     "index.html": "/musicsync/index.html"
   },
   "entrypoints": [
-    "static/css/main.badc0b75.css",
-    "static/js/main.1ae1dc66.js"
+    "static/css/main.128e5d49.css",
+    "static/js/main.b48fd4e2.js"
   ]
 }
